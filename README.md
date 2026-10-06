@@ -4,7 +4,7 @@ Application web avec deux choix administrateur : stockage local sur l’appareil
 
 ## Déploiement
 
-Importer le dossier `deploy-vercel` dans Vercel (ou l’ajouter à un dépôt Git et le relier). Choisir **Other**, sans commande de build, et `.` comme répertoire de sortie. Vercel sert `index.html` et la fonction `api/store.js`.
+Relier ce dépôt GitHub à un projet Vercel. Choisir **Other**, sans commande de build, et `.` comme répertoire de sortie. Vercel sert `index.html` et la fonction `api/store.js`.
 
 Pour activer la base cloud :
 
