@@ -23,6 +23,16 @@ La clé PostgreSQL reste côté serveur. Le mode cloud utilise une clé administ
 
 Le repère initial des droits congés est de 2 jours ouvrables par mois de service, valeur paramétrable. Vérifiez les règles applicables à la convention collective et au salarié.
 
+## Règles de calcul (références)
+
+Vérifiées sur le CGI du Sénégal annoté (octobre 2025) et le Code du travail :
+
+- **IR** (CGI art. 173) : barème progressif 0/20/30/35/37/40 % jusqu’à 50 M FCFA puis 43 %, base arrondie au millier inférieur ; abattement de 30 % plafonné à 900 000 FCFA/an, représentatif des cotisations de retraite et des frais (pas de déduction IPRES séparée) ; l’impôt ne peut excéder 43 % du revenu imposable.
+- **Parts et réduction familiale** (art. 174) : célibataire 1 part, marié 1 part, +0,5 part si un seul conjoint a des revenus, +0,5 part par enfant, 5 parts maximum ; réduction de 10 % à 45 % avec minimum et maximum selon le nombre de parts.
+- **TRIMF** (art. 275 à 282) : 6 tranches sur le revenu brut annuel, avantages en argent inclus (indemnité de transport comprise, remboursements de frais justifiés exclus) ; le salarié paie aussi pour un conjoint sans revenus.
+- **IPRES** : régime général 5,6 % salarié / 8,4 % employeur jusqu’à 432 000 FCFA ; régime complémentaire (RCC) 2,4 % / 3,6 % de 432 000 à 1 296 000 FCFA, **réservé aux cadres** (champ « Affiliation IPRES »).
+- **Congés** : 2 jours ouvrables par **mois révolu** de service effectif, sans prorata du mois en cours (ex. embauche en avril, bulletin d’octobre : 6 mois = 12 jours). Le droit à prendre le congé suppose en principe un an de service.
+
 ## Données et contrôle d’accès
 
 En local, les données restent dans le navigateur. En cloud, la sauvegarde JSON de l’application est stockée dans la base Neon du projet. Cette première version vise un administrateur unique ou une équipe partageant une clé protégée ; pour plusieurs gestionnaires RH, ajouter une authentification individuelle, des rôles par entreprise, un journal d’audit et une politique de sauvegarde avant l’usage en production.
