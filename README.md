@@ -31,7 +31,9 @@ Vérifiées sur le CGI du Sénégal annoté (octobre 2025) et le Code du travail
 - **Parts et réduction familiale** (art. 174) : célibataire 1 part, marié 1 part, +0,5 part si un seul conjoint a des revenus, +0,5 part par enfant, 5 parts maximum ; réduction de 10 % à 45 % avec minimum et maximum selon le nombre de parts.
 - **TRIMF** (art. 275 à 282) : 6 tranches sur le revenu brut annuel, avantages en argent inclus (indemnité de transport comprise, remboursements de frais justifiés exclus) ; le salarié paie aussi pour un conjoint sans revenus.
 - **IPRES** : régime général 5,6 % salarié / 8,4 % employeur jusqu’à 432 000 FCFA ; régime complémentaire (RCC) 2,4 % / 3,6 % de 432 000 à 1 296 000 FCFA, **réservé aux cadres** (champ « Affiliation IPRES »).
-- **Congés** : 2 jours ouvrables par **mois révolu** de service effectif, sans prorata du mois en cours (ex. embauche en avril, bulletin d’octobre : 6 mois = 12 jours). Le droit à prendre le congé suppose en principe un an de service.
+- **Congés** : 2 jours ouvrables par **mois révolu** de service effectif, sans prorata du mois en cours (ex. embauche en avril, bulletin d’octobre : 6 mois = 12 jours). Le congé est exigible après 12 mois de service effectif (nouveau Code du travail, art. 248-249, publié au JO du 17/09/2026) : le bulletin indique la date d’exigibilité tant que ce délai n’est pas atteint.
+- **Sécurité sociale** : le nouveau Code de la sécurité sociale (en vigueur depuis le 17/09/2026) renvoie les taux et plafonds à des textes d’application non encore publiés ; les taux IPRES/CSS actuels sont conservés.
+- **Non encore intégrés (à confirmer par décret ou convention)** : jours de congé supplémentaires (jeunes travailleurs, mères de famille), majorations d’heures supplémentaires, congé de maternité de 18 semaines.
 
 ## Données et contrôle d’accès
 
