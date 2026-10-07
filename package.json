@@ -1,1 +1,12 @@
-{"name":"atelier-paie","private":true,"type":"module","dependencies":{"@neondatabase/serverless":"^1.2.0"}}
+{
+  "name": "atelier-paie",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  }
+}
