@@ -32,6 +32,10 @@ La clé PostgreSQL reste côté serveur. Le mode cloud utilise une clé administ
 
 Le repère initial des droits congés est de 2 jours ouvrables par mois de service, valeur paramétrable. Vérifiez les règles applicables à la convention collective et au salarié.
 
+## Menu principal
+
+Un seul menu latéral (`shell.js`) pilote toute l'application : **Tableau de bord** (général), **Entreprises** (liste des dossiers) et **Paramètres** (paramètres de paie). Ouvrir un dossier déplie ses rubriques sous « Entreprises » : tableau de bord du dossier, Employés, Paie (bulletins, créer un bulletin), Déclarations sociales (échéances, charges sociales, charges fiscales), Documents (exports, archives) et Informations de l'entreprise. Les anciens menus Bulletin, Archives, Paramétrage et Entreprise y sont fusionnés, sans doublon. Thème bleu commun à toutes les pages ; sur mobile, le menu devient un tiroir.
+
 ## Espace dossier d'entreprise
 
 Ouvrir un dossier (« Ouvrir » ou clic dans la liste) affiche un espace dédié (`workspace.js` / `workspace.css`) : menu latéral (Tableau de bord, Employés, Paie, Déclarations sociales, Documents, Paramètres), barre de recherche limitée au dossier, cloche d'échéances, KPI, graphique d'évolution, répartition des charges, raccourcis, derniers bulletins, informations importantes et carte d'aide. Toutes les valeurs viennent des bulletins et paramètres existants (aucune donnée inventée : états vides sinon). Le bouton « Contacter le support » utilise l'e-mail saisi dans Paramètres de paie → Tableau de bord.

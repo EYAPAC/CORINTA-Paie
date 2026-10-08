@@ -40,26 +40,11 @@
   }
   const pct1 = (x) => Math.abs(x).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
 
-  /* ───────── Squelette ───────── */
-  const NAV = [
-    { m: 'dashboard', i: 'home', t: 'Tableau de bord' },
-    { m: 'employees', i: 'users', t: 'Employés' },
-    { g: 'pay', i: 'wallet', t: 'Paie', sub: [{ m: 'payslips', t: 'Bulletins de paie' }, { act: 'new-payslip', t: 'Créer un bulletin' }] },
-    { g: 'decl', i: 'file', t: 'Déclarations sociales', sub: [{ m: 'deadlines', t: 'Échéances' }, { m: 'social', t: 'Charges sociales' }, { m: 'taxes', t: 'Charges fiscales' }] },
-    { g: 'docs', i: 'archive', t: 'Documents', sub: [{ m: 'documents', t: 'Exports et sauvegarde' }, { act: 'view:history', t: 'Archives des bulletins' }] },
-    { g: 'set', i: 'gear', t: 'Paramètres', sub: [{ m: 'settings', t: 'Informations de l’entreprise' }, { act: 'view:config', t: 'Paramètres de paie' }] }
-  ];
+  /* ───────── Squelette ───────── (le menu latéral est celui de l'application : voir shell.js) */
   function build() {
-    const nav = NAV.map((n) => n.g
-      ? '<div class="ws-group"><button type="button" data-g="' + n.g + '" aria-expanded="false">' + icon(n.i) + '<span>' + esc(n.t) + '</span>' + icon('chevron').replace('<svg', '<svg class="ws-chev"') + '</button><div class="ws-sub hidden" id="wsSub-' + n.g + '">' + n.sub.map((s) => '<button type="button" ' + (s.m ? 'data-m="' + s.m + '"' : 'data-act="' + s.act + '"') + '>' + esc(s.t) + '</button>').join('') + '</div></div>'
-      : '<button type="button" data-m="' + n.m + '">' + icon(n.i) + '<span>' + esc(n.t) + '</span></button>').join('');
     const el = document.createElement('div');
     el.id = 'ws'; el.className = 'hidden'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Dossier de l’entreprise');
     el.innerHTML =
-      '<aside class="ws-side"><div class="ws-brand"><span class="ws-logo" aria-hidden="true">C</span><div><b>Corinta <i>Pay</i></b><small>Simplifiez votre paie, valorisez vos talents</small></div></div>' +
-      '<nav class="ws-nav" aria-label="Dossier de l’entreprise">' + nav + '</nav>' +
-      '<div class="ws-side-foot"><nav class="ws-nav"><button type="button" class="ws-exit" data-act="ws-exit">' + icon('logout') + '<span>Toutes les entreprises</span></button></nav>' +
-      '<div class="ws-promo"><span>' + icon('shield') + '</span><div>Une gestion de paie plus simple, plus rapide, plus fiable.</div></div></div></aside>' +
       '<section class="ws-main"><header class="ws-top"><div class="ws-search" role="search">' + icon('search') + '<input id="wsSearch" type="search" placeholder="Rechercher un employé, une opération, un bulletin…" aria-label="Rechercher un employé ou un bulletin de cette entreprise" autocomplete="off"><div id="wsResults" class="cp-results hidden"></div></div><div class="cp-spacer"></div>' +
       '<button type="button" class="cp-icon-btn" id="wsBell" aria-label="Alertes">' + icon('bell') + '<span class="cp-badge-dot hidden" id="wsBellCount">0</span></button>' +
       '<div style="position:relative"><button type="button" class="ws-user" id="wsUser" aria-haspopup="menu" aria-expanded="false"><span class="cp-avatar" id="wsAvatar">A</span><div><b id="wsUserName">Administrateur</b><small>Administrateur</small></div>' + icon('chevron').replace('<svg', '<svg style="width:14px;height:14px;transform:rotate(90deg)"') + '</button>' +
@@ -174,10 +159,9 @@
   function render() {
     if (!st.open) return;
     const c = company();
-    if (!c) { close({ returning: false }); activateView('companies'); return; }
+    if (!c) { close({ returning: false }); if (window.CorintaShell) window.CorintaShell.go('companies'); else activateView('companies'); return; }
     try {
       const recs = allRecords().filter((r) => r.companyId === c.id), m = modelFor(c, recs), mod = st.module;
-      document.querySelectorAll('#ws .ws-nav [data-m]').forEach((b) => { const active = b.dataset.m === mod || (mod === 'declarations' && b.dataset.m === st.decl); b.classList.toggle('active', active); if (active && b.closest('.ws-sub')) { b.closest('.ws-sub').classList.remove('hidden'); const g = b.closest('.ws-group').querySelector('[data-g]'); if (g) g.setAttribute('aria-expanded', 'true'); } });
       const html = mod === 'employees' ? employeesHTML(c, recs) : mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m) : mod === 'documents' ? documentsHTML(c) : mod === 'settings' ? settingsHTML(c, m) : dashboardHTML(m, c);
       const box = $('wsContent'), scroll = box.scrollTop, focusId = document.activeElement && document.activeElement.id;
       box.innerHTML = html;
@@ -187,6 +171,7 @@
       const un = userName(); $('wsUserName').textContent = un || 'Administrateur'; $('wsAvatar').textContent = (un || 'A').trim().slice(0, 1).toUpperCase();
       const n = m.alerts.filter((a) => a.level !== 'info').length, b = $('wsBellCount'); b.textContent = n > 9 ? '9+' : String(n); b.classList.toggle('hidden', n === 0);
       $('wsBell').setAttribute('aria-label', n ? n + ' alerte' + (n > 1 ? 's' : '') + ' à traiter' : 'Aucune alerte');
+      if (window.CorintaShell) window.CorintaShell.sync();
     } catch (err) {
       console.error('Espace de travail', err);
       $('wsContent').innerHTML = '<div class="cp-error" role="alert">Cette rubrique n’a pas pu être calculée : ' + esc((err && err.message) || err) + '. Vos données ne sont pas modifiées.</div>';
@@ -211,15 +196,10 @@
     st.open = false; $('ws').classList.add('hidden'); document.body.classList.remove('ws-open'); document.body.style.overflow = '';
     $('wsMenu').classList.add('hidden'); $('wsResults').classList.add('hidden');
     st.returnTo = opts && opts.returning ? { id: st.companyId, module: st.module } : null; syncPill();
+    if (window.CorintaShell) window.CorintaShell.sync();
   }
-  function syncPill() {
-    let b = $('gBackWs');
-    if (!b) { const bar = $('gbar'); if (!bar) return; b = document.createElement('button'); b.id = 'gBackWs'; b.type = 'button'; b.className = 'cp-btn primary hidden'; b.addEventListener('click', () => { const r = st.returnTo; if (r) open(r.id, r.module); }); bar.insertBefore(b, $('gSearch').parentNode.nextSibling); }
-    const visible = st.returnTo && ['pay', 'history', 'config'].some((v) => !$(v).classList.contains('hidden'));
-    const c = st.returnTo && ORG.items.find((x) => x.id === st.returnTo.id);
-    b.classList.toggle('hidden', !(visible && c));
-    if (c) b.textContent = '← Retour au dossier ' + c.name;
-  }
+  /* Le menu principal affiche le dossier ouvert : plus de bouton « retour » séparé. */
+  function syncPill() { const b = $('gBackWs'); if (b) b.remove(); }
 
   /* ───────── Recherche et événements ───────── */
   function search() {
@@ -233,8 +213,8 @@
   }
   function go(mod) { st.module = MODULE_OF[mod] || mod; if (DECL_OF[mod]) st.decl = DECL_OF[mod]; render(); $('wsContent').scrollTop = 0; }
   function handleAct(a, el) {
-    if (a === 'ws-exit') { close({ returning: false }); activateView('companies'); return; }
-    if (a === 'ws-general') { close({ returning: false }); activateView('dashboard'); return; }
+    if (a === 'ws-exit') { if (window.CorintaShell) window.CorintaShell.go('companies'); return; }
+    if (a === 'ws-general') { if (window.CorintaShell) window.CorintaShell.go('dashboard'); return; }
     if (a.indexOf('module:') === 0) { go(a.slice(7)); return; }
     if (a.indexOf('panel:') === 0) { go(a.slice(6)); return; }
     if (a === 'export-employees') { $('exportEmployeeList').click(); return; }
@@ -254,7 +234,6 @@
   function bind() {
     const root = $('ws');
     root.addEventListener('click', (e) => {
-      const g = e.target.closest('[data-g]'); if (g) { const sub = $('wsSub-' + g.dataset.g), openIt = sub.classList.contains('hidden'); sub.classList.toggle('hidden', !openIt); g.setAttribute('aria-expanded', String(openIt)); return; }
       const mbtn = e.target.closest('[data-m]'); if (mbtn) { $('wsMenu').classList.add('hidden'); go(mbtn.dataset.m); return; }
       const me = e.target.closest('[data-metric]'); if (me) { st.metric = me.dataset.metric; render(); return; }
       const ra = e.target.closest('[data-range]'); if (ra) { st.range = ra.dataset.range; if (st.range === 'custom' && !st.from) { const p = PERIOD_RE.test(st.period) ? st.period : latest(allRecords().filter((r) => r.companyId === st.companyId)); st.to = p; st.from = D.addMonths(p, -5); } render(); return; }
