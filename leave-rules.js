@@ -1,5 +1,5 @@
 /*
- * CORINTA Paie — règle unique de calcul des congés acquis.
+ * Corinta Pay — règle unique de calcul des congés acquis.
  *
  * Code du travail 2026, art. 248-249 : 2 jours ouvrables par mois de service effectif ; le congé
  * est exigible après 12 mois de service.

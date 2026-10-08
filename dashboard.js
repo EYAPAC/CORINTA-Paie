@@ -1,5 +1,5 @@
 /*
- * CORINTA Paie — tableau de bord de l'entreprise active.
+ * Corinta Pay — tableau de bord de l'entreprise active.
  *
  * Règle absolue : AUCUNE donnée inventée. Tous les indicateurs sont calculés à partir des
  * bulletins archivés (paieHistory) et des salariés du dossier (paieCompanies). Sans donnée,
@@ -12,6 +12,9 @@
 (function (root) {
   'use strict';
 
+  const LG = root.CorintaLegal;
+  if (!LG) throw new Error('legal-rules.js doit être chargé avant dashboard.js');
+
   /* ───────── Constantes ───────── */
   const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   const MONTHS_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -19,11 +22,13 @@
   const DEFAULT_STATUS = 'À valider';
   const STATUS_TONE = { 'Brouillon': 'neutral', 'À valider': 'warning', 'Validé': 'info', 'Payé': 'success', 'Erreur': 'danger', 'Sans bulletin': 'neutral' };
   const STATUS_ORDER = { 'Payé': 0, 'Validé': 1, 'À valider': 2, 'Brouillon': 3, 'Erreur': 4, 'Sans bulletin': 5 };
-  /* Échéances : jour du mois SUIVANT la période. Repères indicatifs, modifiables dans Paramétrage. */
+  /* Échéances légales : IPRES et CSS (CSS art. 93) — dans les 15 premiers jours du mois suivant si l'employeur a 20 salariés ou plus,
+     du trimestre suivant sinon ; impôts retenus à la source, TRIMF et CFCE (CGI art. 185 et 268) — dans les 15 premiers jours du mois suivant
+     (trimestre suivant pour le réel simplifié, la contribution globale unique ou des retenues mensuelles de 20 000 FCFA au plus). */
   const OBLIGATIONS = [
-    { key: 'ipres', label: 'IPRES', desc: 'Cotisations retraite', panel: 'social', day: 15 },
-    { key: 'css', label: 'CSS', desc: 'Cotisations sécurité sociale', panel: 'social', day: 15 },
-    { key: 'impots', label: 'Impôts', desc: 'Retenues IR et TRIMF', panel: 'taxes', day: 15 }
+    { key: 'ipres', label: 'IPRES', desc: 'Cotisations retraite', what: 'cotisations retraite', panel: 'social' },
+    { key: 'css', label: 'CSS', desc: 'Cotisations sécurité sociale', what: 'cotisations sécurité sociale', panel: 'social' },
+    { key: 'impots', label: 'Impôts', desc: 'Retenues IR, TRIMF et CFCE', what: 'retenues IR, TRIMF et CFCE', panel: 'taxes' }
   ];
   const SERIES = {
     gross: { label: 'Masse salariale brute', short: 'Brute', field: 'grossAll' },
@@ -55,12 +60,6 @@
   function monthShort(p) { const q = parsePeriod(p); return q ? MONTHS_SHORT[q.m - 1] + ' ' + String(q.y).slice(2) : '—'; }
   function monthsBetween(a, b) { const x = parsePeriod(a), y = parsePeriod(b); return x && y ? (y.y - x.y) * 12 + (y.m - x.m) : 0; }
   function dayDiff(fromISO, toISO) { const f = fromISO.split('-').map(Number), t = toISO.split('-').map(Number); return Math.round((Date.UTC(t[0], t[1] - 1, t[2]) - Date.UTC(f[0], f[1] - 1, f[2])) / 86400000); }
-  function dueDate(period, day) {
-    const q = parsePeriod(period); if (!q) return '';
-    const last = new Date(Date.UTC(q.y, q.m + 1, 0)).getUTCDate(); // dernier jour du mois suivant
-    const d = Math.min(Math.max(1, Math.round(num(day)) || 15), last), t = q.y * 12 + q.m; // q.m = index (0-based) du mois suivant
-    return Math.floor(t / 12) + '-' + String((t % 12) + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-  }
   const frDate = (iso) => { const p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
   const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
 
@@ -97,7 +96,6 @@
     const period = parsePeriod(inp.period) ? inp.period : (inp.today || '').slice(0, 7);
     const today = inp.today || new Date().toISOString().slice(0, 10);
     const obligationsDone = company.obligations || {};
-    const days = inp.deadlineDays || {};
     const metric = SERIES[inp.metric] ? inp.metric : 'gross';
 
     const inPeriod = records.filter((r) => r.period === period);
@@ -121,18 +119,22 @@
     const withPayslip = new Set(inPeriod.map(empKey));
     const missing = (company.employees || []).filter((e) => !withPayslip.has(String(e.id)) && !withPayslip.has(String(e.mat || '')) && !withPayslip.has(String(e.name || '')));
 
-    /* échéances (uniquement pour les périodes réellement traitées) */
-    const deadlines = [];
-    [prevPeriod, period].forEach((p) => {
-      if (!records.some((r) => r.period === p)) return;
-      if (monthsBetween(p, today.slice(0, 7)) > 1) return; // périodes plus anciennes : supposées réglées, pas d'alerte permanente
+    /* échéances : uniquement pour les périodes réellement traitées (6 derniers mois), échéance non réglée et pas dépassée depuis plus de 45 jours */
+    const taxMode = inp.taxRemittance === 'quarterly' ? 'quarterly' : 'monthly', socialMode = LG.socialMode(employeeCount);
+    const found = new Map();
+    for (let k = 0; k <= 5; k++) {
+      const p = addMonths(period, -k);
+      if (!records.some((r) => r.period === p)) continue;
       OBLIGATIONS.forEach((o) => {
         if (obligationsDone[p] && obligationsDone[p][o.key]) return;
-        const due = dueDate(p, days[o.key] != null ? days[o.key] : o.day), left = dayDiff(today, due);
-        deadlines.push({ key: o.key, label: o.label, desc: o.desc, panel: o.panel, period: p, due, days: left, level: left < 0 ? 'late' : left <= 3 ? 'urgent' : left <= 10 ? 'soon' : 'ok' });
+        const mode = o.key === 'impots' ? taxMode : socialMode;
+        const due = LG.dueMonth(p, mode) + '-' + String(LG.DUE_DAY).padStart(2, '0'), left = dayDiff(today, due);
+        if (left < -45) return;
+        const q = parsePeriod(p), periodLabel = mode === 'quarterly' ? 'T' + Math.ceil(q.m / 3) + ' ' + q.y : monthLabel(p), id = o.key + '|' + due, prev = found.get(id);
+        if (!prev || p > prev.period) found.set(id, { key: o.key, label: o.label, desc: o.desc, what: o.what, panel: o.panel, period: p, periodLabel, mode, due, days: left, level: left < 0 ? 'late' : left <= 3 ? 'urgent' : left <= 10 ? 'soon' : 'ok' });
       });
-    });
-    deadlines.sort((a, b) => a.due.localeCompare(b.due) || a.key.localeCompare(b.key));
+    }
+    const deadlines = [...found.values()].sort((a, b) => a.due.localeCompare(b.due) || a.key.localeCompare(b.key));
 
     /* série temporelle */
     const rg = inp.range || { kind: '6' };
@@ -220,7 +222,7 @@
     const alerts = [];
     deadlines.filter((d) => d.level !== 'ok').forEach((d) => {
       const when = d.days < 0 ? 'en retard de ' + Math.abs(d.days) + ' jour' + (Math.abs(d.days) > 1 ? 's' : '') : d.days === 0 ? 'aujourd’hui' : 'avant le ' + frDate(d.due) + ' (' + d.days + ' j)';
-      alerts.push({ level: d.level === 'late' || d.level === 'urgent' ? 'danger' : 'warn', text: d.label + ' : ' + d.desc.toLowerCase() + ' de ' + monthLabel(d.period) + ' à régler ' + when, action: 'panel:' + d.panel, done: { key: d.key, period: d.period } });
+      alerts.push({ level: d.level === 'late' || d.level === 'urgent' ? 'danger' : 'warn', text: d.label + ' : ' + d.what + (d.mode === 'quarterly' ? ' du trimestre ' : ' de ') + d.periodLabel + ' à régler ' + when, action: 'panel:' + d.panel, done: { key: d.key, period: d.period, mode: d.mode } });
     });
     if (errors) alerts.push({ level: 'danger', text: errors + ' bulletin' + (errors > 1 ? 's' : '') + ' en erreur en ' + monthLabel(period) + ' (net ou brut nul)', action: 'panel:payslips' });
     if (missing.length && employeeCount) alerts.push({ level: 'warn', text: missing.length + ' salarié' + (missing.length > 1 ? 's' : '') + ' sans bulletin en ' + monthLabel(period) + ' : ' + missing.slice(0, 3).map((e) => e.name).join(', ') + (missing.length > 3 ? '…' : ''), action: 'panel:employees' });
@@ -424,9 +426,9 @@
 
   function renderAlerts(m) {
     if (!m.alerts.length) return empty('Rien à signaler', m.hasAnyRecord ? 'Aucune échéance proche ni anomalie détectée.' : 'Les alertes apparaîtront dès les premiers bulletins.');
-    return '<ul class="cp-alerts">' + m.alerts.map((a) => '<li class="cp-alert ' + a.level + '"><span class="ico">' + icon(a.level === 'info' ? 'clock' : 'alert') + '</span><button type="button" class="main-act" data-act="' + esc(a.action) + '"' + (a.companyId ? ' data-company="' + esc(a.companyId) + '"' : '') + '>' + esc(a.text) + '</button>' + (a.done ? '<button type="button" class="cp-btn sm" data-act="done"' + (a.companyId ? ' data-company="' + esc(a.companyId) + '"' : '') + ' data-key="' + esc(a.done.key) + '" data-period="' + esc(a.done.period) + '">Marquer fait</button>' : '<span></span>') + '</li>').join('') + '</ul>';
+    return '<ul class="cp-alerts">' + m.alerts.map((a) => '<li class="cp-alert ' + a.level + '"><span class="ico">' + icon(a.level === 'info' ? 'clock' : 'alert') + '</span><button type="button" class="main-act" data-act="' + esc(a.action) + '"' + (a.companyId ? ' data-company="' + esc(a.companyId) + '"' : '') + '>' + esc(a.text) + '</button>' + (a.done ? '<button type="button" class="cp-btn sm" data-act="done"' + (a.companyId ? ' data-company="' + esc(a.companyId) + '"' : '') + ' data-key="' + esc(a.done.key) + '" data-period="' + esc(a.done.period) + '" data-mode="' + esc(a.done.mode) + '">Marquer fait</button>' : '<span></span>') + '</li>').join('') + '</ul>';
   }
 
-  const api = { buildModel, buildGlobalModel, renderKpis, renderGlobalKpis, renderCycle, renderChart, renderDonut, renderShortcuts, renderEmployeeTable, renderCompanyTable, renderAlerts, icon, ICONS, STATUSES, DEFAULT_STATUS, OBLIGATIONS, SERIES, monthLabel, monthShort, addMonths, dueDate, compact, money, esc, recStatus, recNet, recGross, initials };
+  const api = { buildModel, buildGlobalModel, renderKpis, renderGlobalKpis, renderCycle, renderChart, renderDonut, renderShortcuts, renderEmployeeTable, renderCompanyTable, renderAlerts, icon, ICONS, STATUSES, DEFAULT_STATUS, OBLIGATIONS, SERIES, monthLabel, monthShort, addMonths, compact, money, esc, recStatus, recNet, recGross, initials };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaDash = api;
 })(typeof window !== 'undefined' ? window : globalThis);

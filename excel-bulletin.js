@@ -1,5 +1,5 @@
 /*
- * CORINTA Paie — moteur d'export Excel du bulletin de paie (skill corinta-pay-bulletin-excel v1).
+ * Corinta Pay — moteur d'export Excel du bulletin de paie (skill corinta-pay-bulletin-excel v1).
  *
  * Séparation calcul / présentation : ce module ne calcule AUCUNE règle de paie. Il reçoit les lignes
  * déjà calculées par le moteur de paie (update() dans index.html), les écrit dans la feuille masquée
@@ -255,7 +255,8 @@
     y++; b.rowH[y] = ROW_H.signLine;
     b.block(y, 1, 2, { style: id('signLine') }); b.block(y, 4, 5, { style: id('signLine') });
     y++; b.rowH[y] = ROW_H.gap;
-    y++; b.rowH[y] = ROW_H.foot; b.block(y, 1, 6, { v: data.note || '', style: id('foot') });
+    const noteLines = String(data.note || '').split(String.fromCharCode(10)).reduce((t, l) => t + Math.max(1, Math.ceil(l.length / 140)), 0);
+    y++; b.rowH[y] = Math.min(400, Math.max(ROW_H.foot, noteLines * 9.5 + 8)); b.block(y, 1, 6, { v: data.note || '', style: id('foot') });
     b.lastRow = y;
 
     return { sheets: [b, calc, par], styles: st, K, calcLast: last, logo: hasLogo ? data.company.logo : null, totals: { grossAll, ded, emp, net } };
@@ -332,7 +333,7 @@
       `<cols>${cols}</cols><sheetData>${rowsXml}</sheetData>` +
       (sh.protect ? '<sheetProtection sheet="1" objects="1" scenarios="1"/>' : '') +
       (sh.merges.length ? `<mergeCells count="${sh.merges.length}">${sh.merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '') +
-      (sh.print ? '<printOptions horizontalCentered="1"/><pageMargins left="0.4" right="0.4" top="0.5" bottom="0.55" header="0.25" footer="0.25"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1"/><headerFooter><oddFooter>&amp;L&amp;8CORINTA Paie&amp;R&amp;8Bulletin de paie · page &amp;P / &amp;N</oddFooter></headerFooter>' : '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>') +
+      (sh.print ? '<printOptions horizontalCentered="1"/><pageMargins left="0.4" right="0.4" top="0.5" bottom="0.55" header="0.25" footer="0.25"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1"/><headerFooter><oddFooter>&amp;L&amp;8Corinta Pay&amp;R&amp;8Bulletin de paie · page &amp;P / &amp;N</oddFooter></headerFooter>' : '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>') +
       (hasDrawing ? '<drawing r:id="rId1"/>' : '') + '</worksheet>';
   }
 

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+await import('../legal-rules.js');
 await import('../dashboard.js');
 const D = globalThis.CorintaDash;
 
@@ -36,25 +37,52 @@ test('KPI : effectif, masse salariale, variation vs mois précédent', () => {
   assert.equal(base([rec({})]).grossDelta, null, 'pas de variation sans mois précédent');
 });
 
-test('échéances : jour du mois suivant, niveaux d’urgence, uniquement pour une période traitée', () => {
-  assert.equal(D.dueDate('2026-10', 15), '2026-11-15'); assert.equal(D.dueDate('2026-12', 15), '2027-01-15'); assert.equal(D.dueDate('2026-01', 31), '2026-02-28');
-  const m = base([rec({})], { today: '2026-11-10' });
-  assert.equal(m.nextDeadline.days, 5); assert.equal(m.nextDeadline.level, 'soon');
-  assert.equal(base([rec({})], { today: '2026-11-13' }).nextDeadline.level, 'urgent');
-  assert.equal(base([rec({})], { today: '2026-11-20' }).nextDeadline.level, 'late');
-  assert.equal(base([], { today: '2026-11-10' }).deadlines.length, 0, 'aucune échéance sans bulletin');
-  const done = base([rec({})], { today: '2026-11-10', company: { ...company, obligations: { '2026-10': { ipres: true, css: true, impots: true } } } });
-  assert.equal(done.deadlines.length, 0);
-  const custom = base([rec({})], { today: '2026-11-01', deadlineDays: { ipres: 5, css: 20, impots: 25 } });
-  assert.equal(custom.nextDeadline.key, 'ipres'); assert.equal(custom.nextDeadline.due, '2026-11-05');
+const big = { id: 'c1', name: 'Grande entreprise', employees: Array.from({ length: 20 }, (_, i) => ({ id: 'b' + i, name: 'S' + i, mat: 'B' + i, fields: { hire: '2020-01-01', base: '1' } })) };
+
+test('échéances légales : impôts le 15 du mois suivant ; IPRES/CSS trimestriels sous 20 salariés (CSS art. 93, CGI art. 185)', () => {
+  const m = base([rec({})], { today: '2026-11-10' });                       // 3 salariés → IPRES/CSS par trimestre
+  const by = Object.fromEntries(m.deadlines.map((d) => [d.key, d]));
+  assert.equal(by.impots.due, '2026-11-15'); assert.equal(by.impots.days, 5); assert.equal(by.impots.level, 'soon'); assert.equal(by.impots.mode, 'monthly');
+  assert.equal(by.ipres.due, '2027-01-15'); assert.equal(by.css.due, '2027-01-15'); assert.equal(by.ipres.mode, 'quarterly');
+  assert.equal(by.ipres.periodLabel, 'T4 2026'); assert.equal(m.nextDeadline.key, 'impots');
 });
 
-test('échéances : les périodes de plus d’un mois ne créent pas d’alerte permanente', () => {
-  const vieux = [rec({ period: '2026-06' }), rec({ period: '2026-07' })];
-  const m = D.buildModel({ company, records: vieux, period: '2026-07', today: '2026-10-08' });
-  assert.equal(m.deadlines.length, 0); assert.equal(m.nextDeadline, null);
+test('échéances légales : 20 salariés ou plus → IPRES et CSS mensuels', () => {
+  const m = D.buildModel({ company: big, records: [rec({})], period: '2026-10', today: '2026-11-01' });
+  assert.equal(m.employeeCount, 21); // 20 salariés du dossier + le salarié de l'enregistrement
+  const by = Object.fromEntries(m.deadlines.map((d) => [d.key, d]));
+  assert.equal(by.ipres.due, '2026-11-15'); assert.equal(by.css.due, '2026-11-15'); assert.equal(by.ipres.mode, 'monthly');
+  assert.equal(by.ipres.periodLabel, 'Octobre 2026');
+});
+
+test('échéances légales : le seuil est exactement 20 salariés', () => {
+  const sans = (n) => ({ id: 'c1', name: 'X', employees: Array.from({ length: n }, (_, i) => ({ id: 'z' + i, name: 'Z' + i, mat: 'Z' + i, fields: { hire: '2020-01-01', base: '1' } })) });
+  const mode = (n) => D.buildModel({ company: sans(n), records: [{ ...rec({}), employeeId: 'z0', name: 'Z0', fields: { mat: 'Z0' } }], period: '2026-10', today: '2026-11-01' }).deadlines.find((d) => d.key === 'ipres').mode;
+  assert.equal(mode(19), 'quarterly'); assert.equal(mode(20), 'monthly');
+});
+
+test('échéances légales : niveaux d’urgence et impôts trimestriels (réel simplifié, CGU)', () => {
+  const nd = (today, extra) => base([rec({})], { today, ...(extra || {}) }).deadlines.find((d) => d.key === 'impots');
+  assert.equal(nd('2026-11-13').level, 'urgent'); assert.equal(nd('2026-11-20').level, 'late'); assert.equal(nd('2026-11-20').days, -5);
+  const q = nd('2026-11-10', { taxRemittance: 'quarterly' }); assert.equal(q.due, '2027-01-15'); assert.equal(q.mode, 'quarterly');
+  assert.equal(base([], { today: '2026-11-10' }).deadlines.length, 0, 'aucune échéance sans bulletin');
+});
+
+test('échéances : échéance réglée ou dépassée depuis plus de 45 jours = pas d’alerte permanente', () => {
+  const tous = { '2026-10': { ipres: true, css: true, impots: true } };
+  assert.equal(base([rec({})], { today: '2026-11-10', company: { ...company, obligations: tous } }).deadlines.length, 0);
+  const vieux = D.buildModel({ company, records: [rec({ period: '2026-05' })], period: '2026-05', today: '2026-10-08' });
+  assert.equal(vieux.deadlines.length, 0, 'mai 2026 : échéances de juin/août dépassées depuis plus de 45 jours');
   const recent = D.buildModel({ company, records: [rec({ period: '2026-09' })], period: '2026-09', today: '2026-10-08' });
-  assert.equal(recent.nextDeadline.period, '2026-09'); assert.equal(recent.nextDeadline.days, 7);
+  assert.equal(recent.deadlines.find((d) => d.key === 'impots').days, 7);
+});
+
+test('échéances : cocher « fait » pour un trimestre couvre ses trois mois', () => {
+  const T = globalThis.CorintaLegal;
+  const done = {}; for (const mo of T.quarterMonths('2026-10')) done[mo] = { ipres: true, css: true };
+  const m = base([rec({ period: '2026-10' }), rec({ period: '2026-09' })], { today: '2026-11-10', company: { ...company, obligations: done } });
+  assert.ok(!m.deadlines.some((d) => (d.key === 'ipres' || d.key === 'css') && d.due === '2027-01-15'), 'T4 2026 coché : plus d’échéance au 15 janvier');
+  assert.ok(m.deadlines.some((d) => d.key === 'ipres' && d.due === '2026-10-15' && d.periodLabel === 'T3 2026'), 'T3 2026 non coché : toujours en attente');
 });
 
 test('KPI : variation nulle affichée « Stable »', () => {

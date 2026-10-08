@@ -1,5 +1,5 @@
 /*
- * CORINTA Paie — câblage des DEUX niveaux de tableau de bord et de la barre supérieure globale.
+ * Corinta Pay — câblage des DEUX niveaux de tableau de bord et de la barre supérieure globale.
  *
  *   1. Tableau de bord GÉNÉRAL  (menu « Tableau de bord ») : toutes les entreprises ensemble.
  *   2. Tableau de bord d'UNE ENTREPRISE : onglet « Tableau de bord » À L'INTÉRIEUR du dossier
@@ -28,7 +28,7 @@
     return p.length ? p[p.length - 1] : todayISO().slice(0, 7);
   }
   const effPeriod = (recs) => (PERIOD_RE.test(state.period) ? state.period : latestPeriod(recs));
-  const common = (recs) => ({ records: recs, period: effPeriod(recs), range: { kind: state.range, from: state.from, to: state.to }, today: todayISO(), deadlineDays: S.deadlineDays || {}, metric: state.metric });
+  const common = (recs) => ({ records: recs, period: effPeriod(recs), range: { kind: state.range, from: state.from, to: state.to }, today: todayISO(), taxRemittance: S.taxRemittance || 'monthly', metric: state.metric });
   function generalModel() {
     const recs = allRecords();
     return D.buildGlobalModel(Object.assign(common(recs), { companies: ORG.items, period: effPeriod(recs) }));
@@ -98,7 +98,7 @@
       $('dbKpis').innerHTML = D.renderGlobalKpis(g);
       fillCommon('db', g, 'general');
       $('dbCompanies').innerHTML = D.renderCompanyTable(g);
-      $('dbFootL').textContent = 'CORINTA Paie · ' + (($('appVersion') || {}).textContent || '') + ' · Paie · Conformité';
+      $('dbFootL').textContent = 'Corinta Pay · ' + (($('appVersion') || {}).textContent || '') + ' · Paie · Conformité';
       $('dbFootR').textContent = 'Données enregistrées sur cet appareil';
       $('dashboard').querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = D.icon(el.dataset.icon); });
     } catch (err) { fail('dbKpis', err); }
@@ -183,7 +183,8 @@
     }
     if (a === 'done') {
       const c = ORG.items.find((x) => x.id === cid) || company(), p = el.dataset.period, k = el.dataset.key;
-      c.obligations = c.obligations || {}; c.obligations[p] = c.obligations[p] || {}; c.obligations[p][k] = true;
+      c.obligations = c.obligations || {};
+      (el.dataset.mode === 'quarterly' ? window.CorintaLegal.quarterMonths(p) : [p]).forEach((mo) => { c.obligations[mo] = c.obligations[mo] || {}; c.obligations[mo][k] = true; });
       persistOrg(); toast('Échéance marquée comme faite'); refreshVisible(); return;
     }
   }
@@ -249,15 +250,13 @@
     /* réglages : nom affiché et jours d'échéance */
     $('saveDashSettings').addEventListener('click', () => {
       S.userName = $('userName').value.trim();
-      const day = (id, def) => { const v = Math.round(Number($(id).value)); return v >= 1 && v <= 31 ? v : def; };
-      S.deadlineDays = { ipres: day('ddIpres', 15), css: day('ddCss', 15), impots: day('ddImpots', 15) };
+      S.taxRemittance = $('taxRemittance').value === 'quarterly' ? 'quarterly' : 'monthly';
       save(); refreshVisible();
     });
   }
   function fillDashSettings() {
     $('userName').value = S.userName || '';
-    const d = S.deadlineDays || {};
-    $('ddIpres').value = d.ipres || 15; $('ddCss').value = d.css || 15; $('ddImpots').value = d.impots || 15;
+    $('taxRemittance').value = S.taxRemittance === 'quarterly' ? 'quarterly' : 'monthly';
   }
 
   /* ───────── Intégration à la navigation existante ───────── */
