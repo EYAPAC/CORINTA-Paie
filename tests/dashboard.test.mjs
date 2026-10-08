@@ -18,9 +18,9 @@ const base = (records, extra = {}) => D.buildModel({ company, records, period: '
 test('entreprise sans aucune donnée : zéros et états vides, rien d’inventé', () => {
   const m = D.buildModel({ company: { id: 'x', name: 'Vide', employees: [] }, records: [], period: '2026-10', today: '2026-10-08' });
   assert.equal(m.employeeCount, 0); assert.equal(m.gross, 0); assert.equal(m.bulletins.count, 0);
-  assert.equal(m.nextDeadline, null); assert.equal(m.distribution.length, 0); assert.equal(m.latest.length, 0);
+  assert.equal(m.nextDeadline, null); assert.equal(m.distribution.length, 0); assert.equal(m.employeeRows.length, 0);
   assert.equal(m.series.points.filter((p) => p.value !== null).length, 0);
-  assert.match(D.renderChart(m), /Aucune donnée/); assert.match(D.renderTable(m), /Aucun bulletin/); assert.match(D.renderDonut(m), /indisponible/);
+  assert.match(D.renderChart(m), /Aucune donnée/); assert.match(D.renderEmployeeTable(m), /Aucun salarié/); assert.match(D.renderDonut(m), /indisponible/);
   assert.match(D.renderCycle(m), /non démarré/); assert.match(D.renderAlerts(m), /Rien à signaler/);
 });
 
@@ -104,21 +104,75 @@ test('informations manquantes et salariés sans bulletin', () => {
   assert.ok(!m.incomplete.some((e) => e.name === 'Awa Ndiaye'));
 });
 
-test('derniers bulletins : récents d’abord, 6 maximum', () => {
-  const recs = ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-04'].map((p) => rec({ period: p }));
-  const m = base(recs); assert.equal(m.latest.length, 6); assert.equal(m.latest[0].period, '2026-10'); assert.equal(m.latest[5].period, '2026-05');
+test('liste des salariés : un salarié par ligne, classés par statut puis par nom', () => {
+  const r1 = rec({ status: 'Payé' }); r1._index = 0;                                              // Awa Ndiaye (e1)
+  const r2 = rec({ employeeId: 'e2', name: 'Moussa Diop', status: 'Validé' }); r2._index = 1;      // Moussa (e2)
+  const m = base([r1, r2]);
+  assert.deepEqual(m.employeeRows.map((x) => [x.name, x.status]), [['Awa Ndiaye', 'Payé'], ['Moussa Diop', 'Validé'], ['Fatou Bâ', 'Sans bulletin']]);
+  const ordre = base([rec({ employeeId: 'e3', name: 'Fatou Bâ', status: 'Brouillon' }), rec({ employeeId: 'e1', name: 'Awa Ndiaye' }), rec({ employeeId: 'e2', name: 'Moussa Diop', status: 'Payé' })]);
+  assert.deepEqual(ordre.employeeRows.map((x) => x.status), ['Payé', 'À valider', 'Brouillon']);
+  assert.equal(m.employeeRows.length, m.employeeCount, 'chaque salarié du dossier apparaît une seule fois');
+});
+
+test('liste des salariés : rendu avec colonnes de la maquette, voir/télécharger, création si sans bulletin', () => {
+  const r = rec({ status: 'Payé' }); r._index = 3; const m = base([r]);
+  const t = D.renderEmployeeTable(m);
+  for (const h of ['Salarié', 'Période', 'Net à payer', 'Statut', 'Actions']) assert.ok(t.includes(h), h);
+  assert.ok(!t.includes('Brut') && !t.includes('Retenues'), 'colonnes limitées à celles de la maquette');
+  for (const a of ['view', 'download', 'status', 'employee']) assert.ok(t.includes('data-act="' + a + '"'), a);
+  assert.ok(!t.includes('data-act="print"'));
+  assert.ok(t.includes('data-i="3"')); assert.match(t, /Sans bulletin/);
+  assert.match(D.renderEmployeeTable(m, 1), /Voir les 3 salariés/, 'au-delà de la limite : lien vers la liste complète');
+});
+
+test('général : les totaux sont la somme exacte des entreprises, sans mélange', () => {
+  const c2 = { id: 'c2', name: 'CESAG', employees: [{ id: 'x1', name: 'Ibrahima Diallo', mat: 'C01', fields: { hire: '2025-01-01', base: '1' } }] };
+  const recs = [rec({}), rec({ employeeId: 'e2', name: 'Moussa Diop' }), { ...rec({ employeeId: 'x1', name: 'Ibrahima Diallo' }), companyId: 'c2', totals: { ...rec({}).totals, grossAll: 300000, net: 250000, employerCost: 340000 } }];
+  const g = D.buildGlobalModel({ companies: [company, c2], records: recs, period: '2026-10', today: '2026-10-08' });
+  const a = base(recs), b = D.buildModel({ company: c2, records: recs, period: '2026-10', today: '2026-10-08' });
+  assert.equal(g.companyCount, 2); assert.equal(g.employeeCount, a.employeeCount + b.employeeCount);
+  assert.equal(g.gross, a.gross + b.gross); assert.equal(g.gross, 500000 * 2 + 300000);
+  assert.equal(g.bulletins.count, 3); assert.equal(g.bulletins.expected, a.bulletins.expected + b.bulletins.expected);
+  assert.equal(Math.round(g.distTotal), Math.round(a.distTotal + b.distTotal));
+  const sep = g.series.points.at(-1); assert.equal(sep.value, g.gross); assert.equal(sep.count, 3);
+  assert.deepEqual(g.rows.map((r) => r.name).sort(), ['CESAG', 'Cabinet MSA']);
+});
+
+test('général : alertes préfixées par l’entreprise, dossiers à traiter en premier, vide sans entreprise', () => {
+  const c2 = { id: 'c2', name: 'CESAG', employees: [] };
+  const g = D.buildGlobalModel({ companies: [company, c2], records: [rec({})], period: '2026-10', today: '2026-11-20' });
+  assert.ok(g.alerts.length && g.alerts.every((a) => a.text.startsWith('Cabinet MSA · ') && a.companyId === 'c1'));
+  assert.equal(g.rows[0].name, 'Cabinet MSA', 'le dossier avec alertes passe devant');
+  assert.match(D.renderAlerts(g), /class="main-act" data-act="panel:[a-z]+" data-company="c1"/, 'le clic sur l’alerte ouvre le dossier concerné');
+  assert.match(D.renderAlerts(g), /data-act="done" data-company="c1"/);
+  assert.doesNotMatch(D.renderAlerts(base([rec({})], { today: '2026-11-20' })), /data-company/, 'au niveau d’une entreprise, pas d’attribut');
+  const vide = D.buildGlobalModel({ companies: [], records: [], period: '2026-10', today: '2026-10-08' });
+  assert.equal(vide.companyCount, 0); assert.equal(vide.gross, 0);
+  assert.match(D.renderCompanyTable(vide), /Aucune entreprise/); assert.match(D.renderChart(vide), /Aucune donnée/);
+});
+
+test('général : tableau des entreprises avec action « Ouvrir » et état du cycle', () => {
+  const g = D.buildGlobalModel({ companies: [company], records: [rec({})], period: '2026-10', today: '2026-10-08' });
+  const t = D.renderCompanyTable(g);
+  assert.ok(t.includes('data-act="open-company"') && t.includes('data-id="c1"')); assert.match(t, /En cours|Bloqué|Terminé/);
+  assert.match(D.renderGlobalKpis(g), /Entreprises/);
+});
+
+test('cartes : variation vs mois précédent pour salariés payés et bulletins', () => {
+  const m = base([rec({}), rec({ employeeId: 'e2', name: 'M2' }), rec({ period: '2026-09' })]);
+  assert.equal(m.paidEmployees, 2); assert.equal(m.prevPaidEmployees, 1); assert.equal(m.prevCount, 1);
+  assert.match(D.renderKpis(m), /↑ \+1/);
 });
 
 test('sécurité : le contenu saisi par l’utilisateur est échappé dans tous les rendus', () => {
   const evil = '<img src=x onerror=alert(1)>';
   const r = rec({ name: evil, fields: { job: evil } }); r._index = 0;
-  const m = base([r], { company: { ...company, name: evil } });
-  for (const html of [D.renderTable(m), D.renderAlerts(m), D.renderKpis(m), D.renderCycle(m)]) assert.ok(!html.includes('<img'), html.slice(0, 80));
+  const co = { ...company, name: evil, employees: [{ id: 'e1', name: evil, job: evil, mat: 'M1', fields: {} }] };
+  const m = base([r], { company: co });
+  const g = D.buildGlobalModel({ companies: [co], records: [r], period: '2026-10', today: '2026-10-08' });
+  for (const html of [D.renderEmployeeTable(m), D.renderAlerts(m), D.renderKpis(m), D.renderCycle(m), D.renderCompanyTable(g), D.renderAlerts(g), D.renderGlobalKpis(g)]) assert.ok(!html.includes('<img'), html.slice(0, 80));
 });
 
-test('actions : chaque bouton interactif porte un data-act, les montants sont en FCFA', () => {
-  const r = rec({}); r._index = 3; const m = base([r]);
-  const t = D.renderTable(m);
-  for (const a of ['view', 'download', 'print', 'status']) assert.ok(t.includes('data-act="' + a + '"'), a);
-  assert.ok(t.includes('data-i="3"')); assert.match(D.money(32480000), /32 480 000 FCFA/); assert.equal(D.compact(32480000), '32,48 M');
+test('montants et formats', () => {
+  assert.match(D.money(32480000), /32.480.000.FCFA/); assert.match(D.compact(32480000), /^32,48.M$/);
 });
