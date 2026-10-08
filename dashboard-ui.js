@@ -42,7 +42,7 @@
   const generalVisible = () => !$('dashboard').classList.contains('hidden');
   const folderVisible = () => !$('companies').classList.contains('hidden') && !$('folderDetailPage').classList.contains('hidden');
   const companyDashVisible = () => folderVisible() && !$('companyPanelDashboard').classList.contains('hidden');
-  const refreshVisible = () => { if (generalVisible()) renderGeneral(); else if (companyDashVisible()) renderCompany(); else syncGlobalBar(); };
+  const refreshVisible = () => { if (window.CorintaWS && window.CorintaWS.isOpen()) { window.CorintaWS.render(); return; } if (generalVisible()) renderGeneral(); else if (companyDashVisible()) renderCompany(); else syncGlobalBar(); };
 
   /* ───────── Squelettes (même structure, identifiants préfixés) ───────── */
   const controls = (p) => '<div style="display:grid;gap:8px;justify-items:end"><div class="cp-chip-group" id="' + p + 'Metric" role="group" aria-label="Indicateur"></div><div class="cp-chip-group" id="' + p + 'Range" role="group" aria-label="Plage de mois"></div><div id="' + p + 'Custom" class="hidden" style="display:flex;gap:6px;align-items:center"><label class="cp-select"><input id="' + p + 'From" type="month" aria-label="Du mois"></label><span class="cp-sub">à</span><label class="cp-select"><input id="' + p + 'To" type="month" aria-label="Au mois"></label></div></div>';
@@ -142,6 +142,7 @@
   /* ───────── Actions ───────── */
   /** Ouvre le dossier d'une entreprise : on reste DANS le dossier, sur l'onglet voulu (tableau de bord par défaut). */
   function openCompany(id, panel) {
+    if (window.CorintaWS) { window.CorintaWS.open(id, panel); return; }
     keepFolder = true;
     try { activateView('companies'); } finally { keepFolder = false; }
     setActiveCompany(id, true);
@@ -251,12 +252,14 @@
     $('saveDashSettings').addEventListener('click', () => {
       S.userName = $('userName').value.trim();
       S.taxRemittance = $('taxRemittance').value === 'quarterly' ? 'quarterly' : 'monthly';
+      S.supportEmail = $('supportEmail').value.trim();
       save(); refreshVisible();
     });
   }
   function fillDashSettings() {
     $('userName').value = S.userName || '';
     $('taxRemittance').value = S.taxRemittance === 'quarterly' ? 'quarterly' : 'monthly';
+    $('supportEmail').value = S.supportEmail || '';
   }
 
   /* ───────── Intégration à la navigation existante ───────── */
@@ -272,14 +275,25 @@
   setActiveCompany = function () { baseSetActive.apply(this, arguments); refreshVisible(); };
   /* Ouvrir un onglet du dossier (ou le dossier lui-même) : le tableau de bord de l'entreprise se met à jour. */
   const basePanel = showCompanyPanel;
-  showCompanyPanel = function (name) { basePanel(name); if (name === 'dashboard') renderCompany(); else syncGlobalBar(); };
+  showCompanyPanel = function (name) {
+    if (window.CorintaWS && ACTIVE_FOLDER_PAGE && !window.CorintaWS.isOpen()) { window.CorintaWS.open(activeCompany().id, name); return; }
+    basePanel(name); if (name === 'dashboard') renderCompany(); else syncGlobalBar();
+  };
+  openCompanyFolder = function (id) { openCompany(id, 'dashboard'); };
   const baseFolders = renderCompanyFolders;
-  renderCompanyFolders = function () { const r = baseFolders.apply(this, arguments); if (companyDashVisible()) renderCompany(); else syncGlobalBar(); return r; };
+  renderCompanyFolders = function () {
+    const r = baseFolders.apply(this, arguments);
+    if (window.CorintaWS && window.CorintaWS.isOpen()) window.CorintaWS.render(); // dossier supprimé ou modifié : l'espace se met à jour ou se ferme
+    else if (companyDashVisible()) renderCompany(); else syncGlobalBar();
+    return r;
+  };
   /* Après chaque enregistrement ou suppression de bulletin, le tableau affiché se rafraîchit. */
   ['saveToFolder', 'deletePayslip'].forEach((name) => {
     const base = window[name]; if (typeof base !== 'function') return;
     window[name] = function () { const r = base.apply(this, arguments); refreshVisible(); return r; };
   });
+
+  window.CorintaUI = { act, setStatus, withRecord };
 
   buildGeneralSkeleton();
   buildCompanySkeleton();

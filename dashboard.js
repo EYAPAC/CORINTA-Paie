@@ -75,12 +75,12 @@
 
   /* ───────── 1. Modèle ───────── */
   const DIST_DEFS = [
-    { key: 'net', label: 'Net versé aux salariés', color: 'var(--cp-s1)' },
-    { key: 'impots', label: 'Impôts (IR et TRIMF)', color: 'var(--cp-s3)' },
+    { key: 'net', label: 'Net versé', color: 'var(--cp-s1)' },
+    { key: 'impots', label: 'Impôts (IR, TRIMF)', color: 'var(--cp-s3)' },
     { key: 'ipres', label: 'IPRES (retraite)', color: 'var(--cp-s4)' },
-    { key: 'css', label: 'CSS (sécurité sociale)', color: 'var(--cp-s2)' },
-    { key: 'autresPatronales', label: 'Autres charges patronales', color: 'var(--cp-s5)' },
-    { key: 'autresRetenues', label: 'Autres retenues salariales', color: 'var(--cp-s6)' }
+    { key: 'css', label: 'CSS', color: 'var(--cp-s2)' },
+    { key: 'autresPatronales', label: 'Charges patronales', color: 'var(--cp-s5)' },
+    { key: 'autresRetenues', label: 'Autres retenues', color: 'var(--cp-s6)' }
   ];
   /** Parts brutes → tranches du disque (valeurs nulles écartées, pourcentages calculés). */
   function distributionFrom(parts) {
@@ -135,6 +135,7 @@
       });
     }
     const deadlines = [...found.values()].sort((a, b) => a.due.localeCompare(b.due) || a.key.localeCompare(b.key));
+    const nextLabels = deadlines.length ? deadlines.filter((d) => d.due === deadlines[0].due).map((d) => d.label) : [];
 
     /* série temporelle */
     const rg = inp.range || { kind: '6' };
@@ -232,7 +233,7 @@
     return {
       company: { id: company.id, name: company.name || company.employer || '' }, period, today, metric, rangeKind: rg.kind || '6', rangeFrom: from, rangeTo: to,
       employeeCount, employeesWithPayslip: withPayslip.size, gross, prevGross, grossDelta, hasPrev: prevRecords.length > 0,
-      bulletins: { count: cnt, expected: employeeCount, status: statusCount }, deadlines, nextDeadline: deadlines[0] || null,
+      bulletins: { count: cnt, expected: employeeCount, status: statusCount }, deadlines, nextDeadline: deadlines[0] || null, nextLabels,
       series: { points, partial, label: SERIES[metric].label }, distribution, distTotal, distCoverage: { covered, total: cnt },
       employeeRows, paidEmployees, prevPaidEmployees, prevCount: prevRecords.length, parts, incomplete, missing: missing.map((e) => e.name), cycle, alerts, hasAnyRecord: records.length > 0, hasPeriodRecord: cnt > 0
     };
@@ -304,7 +305,13 @@
     chart: '<path d="M4 20V5"/><path d="M4 20h16"/><path d="m7 15 4-5 3 3 5-6"/>',
     building2: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 21v-4h6v4M8 7h2M14 7h2M8 11h2M14 11h2"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
-    file2: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>'
+    file2: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>',
+    coin: '<circle cx="12" cy="12" r="9"/><path d="M15.5 9a3.5 3.5 0 0 0-3.3-1.5c-1.8 0-3.2 1.3-3.2 3s1.4 3 3.2 3c1.4 0 2.6-.6 3.3-1.5M7.5 10.5h6M7.5 13.5h6"/>',
+    chevron: '<path d="m9 6 6 6-6 6"/>',
+    headset: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20c0 1.5-2 2-5 2"/>',
+    shield: '<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.3 7.5 9.5 4.4-1.2 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
+    bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
+    logout: '<path d="M10 4H5v16h5"/><path d="m14 8 4 4-4 4M18 12H9"/>'
   };
   const icon = (n) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
 
@@ -331,11 +338,11 @@
     const ndTone = nd ? { late: 'red', urgent: 'red', soon: 'amber', ok: 'green' }[nd.level] : 'amber';
     const empFoot = !m.employeeCount ? '<span>Aucun salarié dans ce dossier</span>' : m.prevPaidEmployees ? trend(m.paidEmployees - m.prevPaidEmployees, '#', true).replace('par rapport au mois dernier', 'salariés payés vs mois dernier') : '<span>' + m.paidEmployees + ' payé' + (m.paidEmployees > 1 ? 's' : '') + ' en ' + esc(monthLabel(m.period)) + '</span>';
     const bulFoot = (m.prevCount ? trend(b.count - m.prevCount, '#', true) : (b.count ? '<span>Aucun bulletin le mois précédent</span>' : '<span>Aucun bulletin enregistré pour cette période</span>')) + (b.count ? '<div class="cp-kpi-badges">' + statusLine(b) + '</div>' : '');
-    const ndFoot = nd ? '<span><b>' + esc(nd.label) + '</b> · ' + esc(nd.desc) + ' · ' + frDate(nd.due) + '</span><span class="cp-badge ' + (nd.level === 'ok' ? 'success' : nd.level === 'soon' ? 'warning' : 'danger') + '">' + (nd.level === 'late' ? 'En retard' : nd.level === 'urgent' ? 'Urgent' : nd.level === 'soon' ? 'Bientôt' : 'À venir') + '</span>' : '<span>Aucune échéance : enregistrez les bulletins de la période</span>';
+    const ndFoot = nd ? '<span>' + icon('calendar').replace('<svg', '<svg width="15" height="15" style="vertical-align:-3px;margin-right:4px"') + '<b>' + esc((m.nextLabels || [nd.label]).join(' / ')) + '</b> · ' + frDate(nd.due) + '</span><span class="cp-badge ' + (nd.level === 'ok' ? 'success' : nd.level === 'soon' ? 'warning' : 'danger') + '">' + (nd.level === 'late' ? 'En retard' : nd.level === 'urgent' ? 'Urgent' : nd.level === 'soon' ? 'Bientôt' : 'À venir') + '</span>' : '<span>Aucune échéance : enregistrez les bulletins de la période</span>';
     const ndVal = nd ? (nd.days < 0 ? Math.abs(nd.days) + ' <small>jour' + (Math.abs(nd.days) > 1 ? 's' : '') + ' de retard</small>' : nd.days + ' <small>jour' + (nd.days > 1 ? 's' : '') + '</small>') : '—';
-    return kpiCard('blue', 'users', 'Total des salariés', String(m.employeeCount), empFoot) +
-      kpiCard('green', 'wallet', 'Masse salariale brute', grossValue(m), grossFoot(m)) +
-      kpiCard('violet', 'file', 'Bulletins de paie générés', bulletinValue(b), bulFoot) +
+    return kpiCard('blue', 'users', 'Total des employés', String(m.employeeCount), empFoot) +
+      kpiCard('green', 'coin', 'Masse salariale brute', grossValue(m), grossFoot(m)) +
+      kpiCard('violet', 'file', 'Nombre de bulletins générés', bulletinValue(b), bulFoot) +
       kpiCard(ndTone, 'calendar', 'Prochaines échéances', ndVal, ndFoot, nd ? ' cp-urgent-' + nd.level : '');
   }
 
@@ -346,9 +353,9 @@
     const bulFoot = (g.prevCount ? trend(b.count - g.prevCount, '#', true) : (b.count ? '<span>Aucun bulletin le mois précédent</span>' : '<span>Aucun bulletin pour cette période</span>')) + (b.count ? '<div class="cp-kpi-badges">' + statusLine(b) + '</div>' : '');
     const withPay = g.rows.filter((r) => r.hasPeriodRecord).length;
     return kpiCard('amber', 'building2', 'Entreprises', String(g.companyCount), '<span>' + withPay + ' avec bulletins en ' + esc(monthLabel(g.period)) + '</span>') +
-      kpiCard('blue', 'users', 'Total des salariés', String(g.employeeCount), empFoot) +
-      kpiCard('green', 'wallet', 'Masse salariale brute', grossValue(g), grossFoot(g)) +
-      kpiCard('violet', 'file', 'Bulletins de paie générés', bulletinValue(b), bulFoot);
+      kpiCard('blue', 'users', 'Total des employés', String(g.employeeCount), empFoot) +
+      kpiCard('green', 'coin', 'Masse salariale brute', grossValue(g), grossFoot(g)) +
+      kpiCard('violet', 'file', 'Nombre de bulletins générés', bulletinValue(b), bulFoot);
   }
 
   function renderCycle(m) {
@@ -375,7 +382,7 @@
     if (cur.length) segs.push(cur);
     const lines = segs.map((s) => s.length > 1 ? '<path class="area" fill="url(#' + gid + ')" d="M' + s[0][0] + ' ' + (T + ih) + ' ' + s.map((q) => 'L' + q[0] + ' ' + q[1]).join(' ') + ' L' + s[s.length - 1][0] + ' ' + (T + ih) + ' Z"/><path class="line" d="M' + s.map((q) => q[0] + ' ' + q[1]).join(' L') + '"/>' : '').join('');
     const dots = pts.map((p, i) => p.value === null ? '' : '<circle class="pt" cx="' + x(i) + '" cy="' + y(p.value) + '" r="4.5" tabindex="0"><title>' + esc(monthLabel(p.period)) + ' : ' + esc(money(p.value)) + ' (' + p.count + ' bulletin' + (p.count > 1 ? 's' : '') + ')</title></circle>').join('');
-    return '<svg class="cp-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(m.series.label) + ' par mois"><defs><linearGradient id="' + gid + '" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#165c4a" stop-opacity=".22"/><stop offset="1" stop-color="#165c4a" stop-opacity="0"/></linearGradient></defs>' + grid + lines + dots + labels + '</svg>' +
+    return '<svg class="cp-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(m.series.label) + ' par mois"><defs><linearGradient id="' + gid + '" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--cp-primary);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--cp-primary);stop-opacity:0"/></linearGradient></defs>' + grid + lines + dots + labels + '</svg>' +
       '<p class="cp-chart-note">' + (pts.length - withData.length ? 'Les mois sans bulletin ne sont pas tracés. ' : '') + (m.series.partial ? 'Certains anciens bulletins n’ont pas ce détail : valeur partielle. ' : '') + 'Montants en FCFA.</p>';
   }
 
