@@ -5,10 +5,10 @@
  *   Tableau de bord            → tableau de bord général
  *   Entreprises                → liste des dossiers ; ouvrir un dossier déplie ses rubriques en dessous :
  *       <Dossier>              → tableau de bord du dossier
- *       Employés · Paie · Déclarations sociales · Documents · Informations de l'entreprise
+ *       Employés · Déclarations sociales · Documents · Informations de l'entreprise
  *   Paramètres                 → paramètres de paie (ancien menu « Paramétrage »)
  * Les anciens menus « Bulletin », « Archives », « Paramétrage » et « Entreprise » sont remplacés par ces entrées :
- * Bulletin → Paie ▸ Créer un bulletin, Archives → Documents ▸ Archives des bulletins.
+ * Bulletin → Créer un bulletin (bouton de la page Employés / Bulletins), Archives → Documents ▸ Archives des bulletins.
  *
  * Chargé après workspace.js. Aucune donnée n'est stockée ici : l'état se déduit des vues affichées.
  */
@@ -25,7 +25,6 @@
   const expanded = new Set();    // groupes dépliés à la main
 
   const GROUPS = [
-    { g: 'pay', i: 'wallet', t: 'Paie', sub: [['ws:payslips', 'Bulletins de paie'], ['new-payslip', 'Créer un bulletin']] },
     { g: 'decl', i: 'file', t: 'Déclarations sociales', sub: [['ws:deadlines', 'Échéances'], ['ws:social', 'Charges sociales'], ['ws:taxes', 'Charges fiscales']] },
     { g: 'docs', i: 'archive', t: 'Documents', sub: [['ws:documents', 'Exports et sauvegarde'], ['view:history', 'Archives des bulletins']] }
   ];
