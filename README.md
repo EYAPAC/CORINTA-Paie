@@ -17,6 +17,11 @@ La clé PostgreSQL reste côté serveur. Le mode cloud utilise une clé administ
 ## Fonctionnalités
 
 - Dossiers par entreprise, fiches salariés et archives de bulletins associées.
+- **Tableau de bord de l'entreprise** (écran d'arrivée ; ouvrir un dossier entreprise y mène) : salariés, masse salariale brute et variation, bulletins par statut, prochaine échéance, cycle de paie, évolution de la masse salariale (brute, nette, charges patronales, coût total ; 6 mois, 12 mois ou plage personnalisée), répartition du coût employeur, six raccourcis, derniers bulletins (voir, télécharger l'Excel, imprimer, changer le statut) et informations importantes cliquables. Barre supérieure globale : recherche de salariés et de bulletins, sélecteur d'entreprise active, période, alertes. Les anciennes pages du dossier (salariés, bulletins, charges fiscales et sociales) restent accessibles par les raccourcis et les alertes.
+  - **Aucune donnée inventée** : tout est calculé à partir des bulletins et salariés enregistrés (`dashboard.js`, testé) ; sans donnée, un état vide est affiché. Les mois sans bulletin ne sont pas tracés.
+  - **Statuts de bulletin** : Brouillon, À valider (par défaut à l'enregistrement), Validé, Payé ; « Erreur » est automatique si le brut ou le net est nul. Le statut se change depuis le tableau.
+  - **Échéances** : IPRES, CSS et impôts, jour du mois suivant (15 par défaut, modifiable dans Paramétrage). Ce sont des repères indicatifs à confirmer auprès des organismes ; seules les périodes du mois courant et du mois précédent génèrent une alerte, et chaque échéance se marque « faite ».
+  - **Design system** : `design-system.css` (jetons de couleur, typographie, cartes, KPI, badges, tableaux, boutons, graphiques, alertes, états vide/chargement/erreur, responsive). Les nouveaux écrans utilisent les classes `cp-*`.
 - Export/import d’une sauvegarde JSON en mode local.
 - Cumuls annuels bruts fiscaux et non imposables, droits de congés acquis et solde de jours disponibles.
 - TRIMF selon la situation familiale choisie.
