@@ -16,9 +16,9 @@
   const $ = (id) => document.getElementById(id);
   const esc = D.esc, icon = D.icon;
   const PERIOD_RE = /^[0-9]{4}-[0-9]{2}$/;
-  const st = { open: false, companyId: '', module: 'dashboard', decl: 'deadlines', period: '', range: '6', from: '', to: '', metric: 'gross', q: '', fPeriod: '', fStatus: '', returnTo: null };
-  const MODULE_OF = { dashboard: 'dashboard', employees: 'employees', payslips: 'payslips', pay: 'payslips', social: 'declarations', taxes: 'declarations', declarations: 'declarations', deadlines: 'declarations', documents: 'documents', settings: 'settings' };
-  const DECL_OF = { social: 'social', taxes: 'taxes', deadlines: 'deadlines', declarations: 'deadlines' };
+  const st = { open: false, companyId: '', module: 'dashboard', decl: 'social', period: '', range: '6', from: '', to: '', metric: 'gross', q: '', fPeriod: '', fStatus: '', returnTo: null };
+  const MODULE_OF = { dashboard: 'dashboard', employees: 'employees', payslips: 'payslips', pay: 'payslips', social: 'charges', taxes: 'charges', charges: 'charges', declarations: 'declarations', deadlines: 'declarations', documents: 'documents', settings: 'settings', params: 'params' };
+  const DECL_OF = { social: 'social', taxes: 'taxes', charges: 'social' };
   const cur = (html) => html.split('FCFA').join('F CFA'); // le modèle écrit « F CFA »
 
   /* ───────── Données ───────── */
@@ -48,7 +48,7 @@
       '<section class="ws-main"><header class="ws-top"><div class="ws-search" role="search">' + icon('search') + '<input id="wsSearch" type="search" placeholder="Rechercher un employé, une opération, un bulletin…" aria-label="Rechercher un employé ou un bulletin de cette entreprise" autocomplete="off"><div id="wsResults" class="cp-results hidden"></div></div><div class="cp-spacer"></div>' +
       '<button type="button" class="cp-icon-btn" id="wsBell" aria-label="Alertes">' + icon('bell') + '<span class="cp-badge-dot hidden" id="wsBellCount">0</span></button>' +
       '<div style="position:relative"><button type="button" class="ws-user" id="wsUser" aria-haspopup="menu" aria-expanded="false"><span class="cp-avatar" id="wsAvatar">A</span><div><b id="wsUserName">Administrateur</b><small>Administrateur</small></div>' + icon('chevron').replace('<svg', '<svg style="width:14px;height:14px;transform:rotate(90deg)"') + '</button>' +
-      '<div class="ws-menu hidden" id="wsMenu" role="menu"><button type="button" role="menuitem" data-m="settings">Informations de l’entreprise</button><button type="button" role="menuitem" data-act="view:config">Paramètres de paie</button><button type="button" role="menuitem" data-act="ws-exit">Toutes les entreprises</button><button type="button" role="menuitem" data-act="ws-general">Tableau de bord général</button></div></div></header>' +
+      '<div class="ws-menu hidden" id="wsMenu" role="menu"><button type="button" role="menuitem" data-act="view:config">Paramètres de paie</button><button type="button" role="menuitem" data-act="ws-general">Tableau de bord général</button></div></div></header>' +
       '<div class="ws-content" id="wsContent" tabindex="-1"></div></section>';
     document.body.appendChild(el);
     return el;
@@ -72,7 +72,7 @@
     const trend = tr === null ? '' : '<div class="ws-trend' + (tr < 0 ? ' down' : '') + '"><b>' + (Math.abs(tr) < 0.05 ? '= Stable' : (tr > 0 ? '↑ +' : '↓ −') + pct1(tr)) + '</b><small>par rapport au mois précédent</small></div>';
     const ctrl = '<div class="ws-chart-ctrl"><div class="cp-chip-group" role="group" aria-label="Indicateur">' + Object.keys(D.SERIES).map((k) => chip(D.SERIES[k].short, st.metric === k, 'data-metric="' + k + '"')).join('') + '</div><div class="cp-chip-group" role="group" aria-label="Plage de mois">' + [['6', '6 mois'], ['12', '12 mois'], ['custom', 'Personnalisée']].map(([k, l]) => chip(l, st.range === k, 'data-range="' + k + '"')).join('') + '</div>' +
       (st.range === 'custom' ? '<label class="cp-select"><input id="wsFrom" type="month" value="' + esc(m.rangeFrom) + '" aria-label="Du mois"></label><span class="cp-sub">à</span><label class="cp-select"><input id="wsTo" type="month" value="' + esc(m.rangeTo) + '" aria-label="Au mois"></label>' : '') + '</div>';
-    return '<div class="ws-hello"><div><h1>Bonjour' + (un ? ' ' + esc(un) : '') + ' 👋</h1><p>Voici un aperçu de l’activité paie de ' + esc(c.name) + ' pour ' + esc(D.monthLabel(m.period)) + '.</p></div><label class="ws-period">' + icon('calendar') + '<input id="wsPeriod" type="month" value="' + esc(m.period) + '" aria-label="Période de paie"></label></div>' +
+    return '<div class="ws-dash"><div class="ws-hello"><div><h1>Bonjour' + (un ? ' ' + esc(un) : '') + ' 👋</h1><p>Voici un aperçu de l’activité paie de ' + esc(c.name) + ' pour ' + esc(D.monthLabel(m.period)) + '.</p></div><label class="ws-period">' + icon('calendar') + '<input id="wsPeriod" type="month" value="' + esc(m.period) + '" aria-label="Période de paie"></label></div>' +
       '<div class="ws-grid4">' + cur(D.renderKpis(m)) + '</div>' +
       '<div class="ws-row2"><article class="cp-card"><div class="cp-card-head"><div><h2>Évolution de la masse salariale</h2><p class="cp-sub">' + esc(m.series.label) + '</p></div>' + trend + '</div>' + ctrl + '<div id="wsChart">' + D.renderChart(m) + '</div></article>' +
       '<article class="cp-card"><div class="cp-card-head"><h2>Répartition des charges</h2></div><div id="wsDonut">' + cur(D.renderDonut(m)) + '</div></article>' +
@@ -81,7 +81,7 @@
       '<div class="ws-stack"><article class="cp-card" id="wsAlertsCard"><div class="cp-card-head"><h2>' + icon('bulb').replace('<svg', '<svg width="22" height="22" style="vertical-align:-5px;margin-right:8px;color:#f4bd3c"') + 'Informations importantes</h2></div>' + alertsHTML(m) +
       '<p style="margin:12px 0 0"><button type="button" class="cp-link" data-act="module:deadlines">Voir le calendrier des échéances →</button></p></article>' +
       '<article class="cp-card ws-help"><div class="ws-help-head">' + icon('shield') + '<h2>Besoin d’aide ?</h2></div><p>Notre équipe est là pour vous accompagner.</p><button type="button" class="cp-btn primary" data-act="support">' + icon('headset') + 'Contacter le support</button></article></div></div>' +
-      '<footer class="ws-foot"><span><b>Corinta Pay</b> · ' + esc(((document.getElementById('appVersion') || {}).textContent || '').replace('Version ', 'v')) + ' | Paie • RH • Conformité</span><span><i class="dot"></i>Données enregistrées sur cet appareil</span></footer>';
+      '<footer class="ws-foot"><span><b>Corinta Pay</b> · ' + esc(((document.getElementById('appVersion') || {}).textContent || '').replace('Version ', 'v')) + ' | Paie • RH • Conformité</span><span><i class="dot"></i>Données enregistrées sur cet appareil</span></footer></div>';
   }
 
   /* ───────── Rubrique : employés ───────── */
@@ -125,20 +125,20 @@
 
   /* ───────── Rubrique : déclarations sociales ───────── */
   function declarationsHTML(c, m) {
-    const tabs = '<div class="cp-chip-group" role="group" aria-label="Déclarations">' + [['deadlines', 'Échéances'], ['social', 'Charges sociales'], ['taxes', 'Charges fiscales']].map(([k, l]) => chip(l, st.decl === k, 'data-decl="' + k + '"')).join('') + '</div>';
-    let body = '';
-    if (st.decl === 'deadlines') {
-      const n = m.employeeCount, mode = n >= 20 ? 'mensuel' : 'trimestriel';
-      body = '<article class="cp-card"><div class="cp-card-head"><div><h2>Échéances à venir</h2><p class="cp-sub">' + n + ' salarié' + (n > 1 ? 's' : '') + ' : IPRES et CSS en versement <b>' + mode + '</b> (CSS art. 93) · impôts : ' + ((S.taxRemittance === 'quarterly') ? 'trimestriel' : 'mensuel') + ' (CGI art. 185). Modifiable dans Paramètres de paie.</p></div></div>' +
-        (m.deadlines.length ? m.deadlines.map((d) => '<div class="ws-deadline"><div><b>' + esc(d.label) + ' · ' + esc(d.desc) + '</b><span>' + (d.mode === 'quarterly' ? 'Trimestre ' : '') + esc(d.periodLabel) + ' · à régler avant le ' + esc(frDate(d.due)) + '</span></div><span class="cp-badge ' + (d.level === 'ok' ? 'success' : d.level === 'soon' ? 'warning' : 'danger') + '">' + (d.days < 0 ? 'Retard ' + Math.abs(d.days) + ' j' : d.days + ' j') + '</span><button type="button" class="cp-btn sm" data-act="done" data-key="' + esc(d.key) + '" data-period="' + esc(d.period) + '" data-mode="' + esc(d.mode) + '">Marquer fait</button></div>').join('') : '<div class="cp-empty"><b>Aucune échéance en attente</b><span>Les échéances apparaissent dès que des bulletins sont enregistrés et disparaissent une fois marquées comme faites.</span></div>') + '</article>';
-    } else {
-      const k = folderTotals(c), n = k.h.length, cov = k.metricsCoverage || {};
-      const metric = (l, v) => '<div class="ws-metric"><span>' + esc(l) + '</span><b>' + esc(cur(folderMoney(v))) + '</b></div>';
-      if (st.decl === 'social') body = '<article class="cp-card"><div class="cp-card-head"><div><h2>Charges sociales cumulées</h2><p class="cp-sub">Cotisations IPRES et CSS portées par les bulletins enregistrés (' + (cov.ipres || 0) + '/' + n + ' bulletin' + (n > 1 ? 's' : '') + ' avec détail).</p></div></div><div class="ws-cards3">' + metric('IPRES · part salariale', k.ipresE) + metric('IPRES · part patronale', k.ipresP) + metric('CSS · part patronale', k.cssP) + '</div></article>';
-      else body = '<article class="cp-card"><div class="cp-card-head"><div><h2>Charges fiscales cumulées</h2><p class="cp-sub">Impôt sur le revenu et TRIMF retenus sur les bulletins enregistrés (' + (cov.tax || 0) + '/' + n + ' avec détail).</p></div></div><div class="ws-cards3">' + metric('Impôt sur le revenu', k.ir) + metric('TRIMF', k.trimf) + metric('Total retenu', k.taxes) + '</div></article>';
-      body += '<p class="cp-sub">Les anciens bulletins sans détail de charges ne sont pas estimés : recalculez-les depuis Archives (« Recalculer les bulletins archivés »).</p>';
-    }
-    return '<div class="ws-page-head"><div><h1>Déclarations sociales</h1><p>Échéances légales et charges portées par les bulletins de ' + esc(c.name) + '</p></div><div class="ws-tools">' + tabs + '</div></div>' + body;
+    const n = m.employeeCount, mode = n >= 20 ? 'mensuel' : 'trimestriel';
+    const body = '<article class="cp-card"><div class="cp-card-head"><div><h2>Échéances à venir</h2><p class="cp-sub">' + n + ' salarié' + (n > 1 ? 's' : '') + ' : IPRES et CSS en versement <b>' + mode + '</b> (CSS art. 93) · impôts : ' + ((S.taxRemittance === 'quarterly') ? 'trimestriel' : 'mensuel') + ' (CGI art. 185). Modifiable dans Paramètres de paie.</p></div></div>' +
+      (m.deadlines.length ? m.deadlines.map((d) => '<div class="ws-deadline"><div><b>' + esc(d.label) + ' · ' + esc(d.desc) + '</b><span>' + (d.mode === 'quarterly' ? 'Trimestre ' : '') + esc(d.periodLabel) + ' · à régler avant le ' + esc(frDate(d.due)) + '</span></div><span class="cp-badge ' + (d.level === 'ok' ? 'success' : d.level === 'soon' ? 'warning' : 'danger') + '">' + (d.days < 0 ? 'Retard ' + Math.abs(d.days) + ' j' : d.days + ' j') + '</span><button type="button" class="cp-btn sm" data-act="done" data-key="' + esc(d.key) + '" data-period="' + esc(d.period) + '" data-mode="' + esc(d.mode) + '">Marquer fait</button></div>').join('') : '<div class="cp-empty"><b>Aucune échéance en attente</b><span>Les échéances apparaissent dès que des bulletins sont enregistrés et disparaissent une fois marquées comme faites.</span></div>') + '</article>';
+    return '<div class="ws-page-head"><div><h1>Déclarations sociales et fiscales</h1><p>Échéances légales de ' + esc(c.name) + '</p></div><div class="ws-tools"><button type="button" class="cp-btn" data-act="module:charges">' + icon('coin') + 'Voir les charges et cotisations</button></div></div>' + body;
+  }
+  function chargesHTML(c) {
+    const tabs = '<div class="cp-chip-group" role="group" aria-label="Type de charges">' + [['social', 'Charges sociales'], ['taxes', 'Charges fiscales']].map(([k, l]) => chip(l, st.decl === k, 'data-decl="' + k + '"')).join('') + '</div>';
+    const k = folderTotals(c), n = k.h.length, cov = k.metricsCoverage || {};
+    const metric = (l, v) => '<div class="ws-metric"><span>' + esc(l) + '</span><b>' + esc(cur(folderMoney(v))) + '</b></div>';
+    let body;
+    if (st.decl === 'taxes') body = '<article class="cp-card"><div class="cp-card-head"><div><h2>Charges fiscales cumulées</h2><p class="cp-sub">Impôt sur le revenu et TRIMF retenus sur les bulletins enregistrés (' + (cov.tax || 0) + '/' + n + ' avec détail).</p></div></div><div class="ws-cards3">' + metric('Impôt sur le revenu', k.ir) + metric('TRIMF', k.trimf) + metric('Total retenu', k.taxes) + '</div></article>';
+    else body = '<article class="cp-card"><div class="cp-card-head"><div><h2>Charges sociales cumulées</h2><p class="cp-sub">Cotisations IPRES et CSS portées par les bulletins enregistrés (' + (cov.ipres || 0) + '/' + n + ' bulletin' + (n > 1 ? 's' : '') + ' avec détail).</p></div></div><div class="ws-cards3">' + metric('IPRES · part salariale', k.ipresE) + metric('IPRES · part patronale', k.ipresP) + metric('CSS · part patronale', k.cssP) + '</div></article>';
+    body += '<p class="cp-sub">Les anciens bulletins sans détail de charges ne sont pas estimés : recalculez-les depuis les archives (« Recalculer les bulletins archivés »).</p>';
+    return '<div class="ws-page-head"><div><h1>Charges et cotisations</h1><p>Montants cumulés portés par les bulletins de ' + esc(c.name) + '</p></div><div class="ws-tools">' + tabs + '</div></div>' + body;
   }
 
   /* ───────── Rubrique : documents ───────── */
@@ -151,7 +151,13 @@
   function settingsHTML(c, m) {
     const k = folderTotals(c);
     return '<div class="ws-page-head"><div><h1>Informations de l’entreprise</h1><p>Dossier de paie · ' + m.employeeCount + ' salarié' + (m.employeeCount > 1 ? 's' : '') + ' · ' + k.h.length + ' bulletin' + (k.h.length > 1 ? 's' : '') + '</p></div></div>' +
-      '<article class="cp-card ws-form"><h2>Nom de l’employeur sur le bulletin</h2><div class="row"><div class="ws-field"><label for="wsEmployer">Nom légal de l’employeur</label><input id="wsEmployer" value="' + esc(c.employer || '') + '" placeholder="Entreprise SARL"></div><button type="button" class="cp-btn primary" data-act="ws-save-employer">Enregistrer</button></div><p class="cp-sub">Ce nom figure sur les bulletins et les exports de ce dossier.</p></article>' +
+      '<article class="cp-card ws-form"><h2>Identité du dossier</h2><div class="ws-info"><div><span>Nom du dossier</span><b>' + esc(c.name) + '</b></div><div><span>Identifiant</span><b>' + esc(c.id) + '</b></div><div><span>Employeur sur les bulletins</span><b>' + esc(c.employer || c.name) + '</b></div></div></article>' +
+      '<article class="cp-card ws-form"><h2>Nom de l’employeur sur le bulletin</h2><div class="row"><div class="ws-field"><label for="wsEmployer">Nom légal de l’employeur</label><input id="wsEmployer" value="' + esc(c.employer || '') + '" placeholder="Entreprise SARL"></div><button type="button" class="cp-btn primary" data-act="ws-save-employer">Enregistrer</button></div><p class="cp-sub">Ce nom figure sur les bulletins et les exports de ce dossier.</p></article>';
+  }
+  function paramsHTML(c, m) {
+    const n = m.employeeCount, mode = n >= 20 ? 'mensuel' : 'trimestriel';
+    return '<div class="ws-page-head"><div><h1>Paramètres de l’entreprise</h1><p>Règles appliquées au dossier ' + esc(c.name) + '</p></div></div>' +
+      '<article class="cp-card ws-form"><h2>Rythme des déclarations</h2><div class="ws-info"><div><span>IPRES et CSS</span><b>Versement ' + mode + ' (' + n + ' salarié' + (n > 1 ? 's' : '') + ', CSS art. 93)</b></div><div><span>Impôts retenus (IR, TRIMF) et CFCE</span><b>' + (S.taxRemittance === 'quarterly' ? 'Trimestriel' : 'Mensuel') + ' (CGI art. 185)</b></div></div><div class="row"><button type="button" class="cp-btn primary" data-act="view:config">' + icon('gear') + 'Ouvrir les paramètres de paie</button></div><p class="cp-sub">Barèmes, taux et règles de calcul sont communs à toutes les entreprises ; ils se modifient dans Paramètres de paie.</p></article>' +
       '<article class="cp-card ws-form ws-danger"><h2>Supprimer ce dossier</h2><p class="cp-sub">Le dossier, ses ' + m.employeeCount + ' salarié(s) et tous ses bulletins seront supprimés définitivement. Une confirmation vous sera demandée.</p><div class="row"><button type="button" class="cp-btn" style="color:#b3261e;border-color:#f3b6b0" data-act="ws-delete">Supprimer le dossier…</button></div></article>';
   }
 
@@ -162,7 +168,7 @@
     if (!c) { close({ returning: false }); if (window.CorintaShell) window.CorintaShell.go('companies'); else activateView('companies'); return; }
     try {
       const recs = allRecords().filter((r) => r.companyId === c.id), m = modelFor(c, recs), mod = st.module;
-      const html = mod === 'employees' ? employeesHTML(c, recs) : mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m) : mod === 'documents' ? documentsHTML(c) : mod === 'settings' ? settingsHTML(c, m) : dashboardHTML(m, c);
+      const html = mod === 'employees' ? employeesHTML(c, recs) : mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m) : mod === 'charges' ? chargesHTML(c) : mod === 'documents' ? documentsHTML(c) : mod === 'settings' ? settingsHTML(c, m) : mod === 'params' ? paramsHTML(c, m) : dashboardHTML(m, c);
       const box = $('wsContent'), scroll = box.scrollTop, focusId = document.activeElement && document.activeElement.id;
       box.innerHTML = html;
       if (mod === st.lastModule) box.scrollTop = scroll;

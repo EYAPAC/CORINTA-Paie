@@ -283,3 +283,23 @@ body { font-family: var(--cp-font); background: var(--cp-bg); color: var(--cp-in
 
 /* dans un dossier d'entreprise, les compteurs globaux de la liste ne s'affichent pas (ils concernent toutes les entreprises) */
 #companies:has(#folderDetailPage:not(.hidden)) #folderKpis { display: none; }
+
+/* ───────── 6. Barre de navigation du dossier (niveau 2) ───────── */
+:root { --cnav-h: 0px; }
+body.has-cnav { --cnav-h: 58px; }
+.cnav { position: fixed; top: 0; left: var(--side-w); right: 0; height: 58px; z-index: 46; display: flex; align-items: center; gap: 10px; padding: 0 clamp(12px, 2vw, 24px); background: #fff; border-bottom: 2px solid #cfe0fb; box-shadow: 0 2px 10px rgba(26, 62, 128, .06); }
+.cnav.hidden { display: none; }
+.cnav button { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; font: inherit; font-size: 13px; color: #34476a; padding: 8px 12px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
+.cnav button svg { width: 17px; height: 17px; flex: 0 0 17px; }
+.cnav button:hover { background: var(--cp-primary-50); color: var(--cp-primary-700); }
+.cnav button:focus-visible { outline: none; box-shadow: var(--cp-focus); }
+.cnav button.active { background: var(--cp-primary-50); color: var(--cp-primary-700); font-weight: 700; box-shadow: inset 0 -3px 0 var(--cp-primary); border-radius: 9px 9px 0 0; }
+.cnav-back { border: 1px solid var(--cp-line) !important; }
+.cnav-company { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: #0a3a8c; color: #fff; border-radius: 10px; font-size: 13px; max-width: 220px; flex: 0 0 auto; }
+.cnav-company svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.cnav-company b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cnav-tabs { position: relative; display: flex; gap: 2px; overflow-x: auto; flex: 1 1 auto; min-width: 0; align-self: stretch; align-items: center; scrollbar-width: thin; }
+body.has-cnav .main { padding-top: var(--cnav-h); }
+body.has-cnav .cp-gbar { top: var(--cnav-h); }
+@media (max-width: 900px) { .cnav { left: 0; padding-left: 64px; } }
+@media print { .cnav { display: none !important; } }

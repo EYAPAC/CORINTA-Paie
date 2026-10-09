@@ -32,9 +32,16 @@ La clé PostgreSQL reste côté serveur. Le mode cloud utilise une clé administ
 
 Le repère initial des droits congés est de 2 jours ouvrables par mois de service, valeur paramétrable. Vérifiez les règles applicables à la convention collective et au salarié.
 
-## Menu principal
+## Navigation à deux niveaux
 
-Un seul menu latéral (`shell.js`) pilote toute l'application : **Tableau de bord** (général), **Entreprises** (liste des dossiers) et **Paramètres** (paramètres de paie). Ouvrir un dossier déplie ses rubriques sous « Entreprises » : tableau de bord du dossier, Employés, Paie (bulletins, créer un bulletin), Déclarations sociales (échéances, charges sociales, charges fiscales), Documents (exports, archives) et Informations de l'entreprise. Les anciens menus Bulletin, Archives, Paramétrage et Entreprise y sont fusionnés, sans doublon. Thème bleu commun à toutes les pages ; sur mobile, le menu devient un tiroir.
+- **Menu principal** (barre bleue, `shell.js`) : Tableau de bord (général), Entreprises (liste alphabétique, recherche, création), Paramètres (paramètres de paie).
+- **Barre du dossier** (apparaît à l'ouverture d'une entreprise, visuellement distincte) : Tableau de bord · Employés · Bulletins de paie · Déclarations sociales et fiscales · Charges et cotisations · Documents · Informations de l'entreprise · Paramètres de l'entreprise, plus un retour à la liste.
+- « Créer un bulletin » est un bouton des pages Employés et Bulletins de paie ; « Archives » est une carte de Documents (l'onglet Documents reste actif sur cet écran).
+- Tableau de bord du dossier : 4 cartes + 3 panneaux, largeur minimale fixe avec défilement horizontal sur écran étroit (pas d'empilement). Thème bleu commun ; sur mobile le menu devient un tiroir.
+
+## Skills de travail (`.claude/skills/`)
+
+`corenta-audit-existing-app`, `corenta-dashboard-design`, `corenta-pay-data-integrity`, `corenta-functional-navigation`, `corenta-regression-testing` : procédures à suivre pour toute évolution (audit sans reconstruction, composition du tableau de bord, intégrité des données, navigation fonctionnelle, tests). Claude Code les charge au lancement depuis ce dossier.
 
 ## Espace dossier d'entreprise
 
