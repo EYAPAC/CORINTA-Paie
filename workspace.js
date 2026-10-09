@@ -224,7 +224,7 @@
 
   /* ── Documents : exports + archives des bulletins par année et mois ── */
   function documentsHTML(c, recs) {
-    const t = [['export-employees', 'users', 'Liste des salariés (CSV)', 'Nom, matricule, téléphone et emploi'], ['export-report', 'file', 'Liste des bulletins (CSV)', 'Net, masse brute, charges fiscales et sociales'], ['backup', 'download', 'Sauvegarde complète (JSON)', 'Toutes les entreprises, paramètres et bulletins'], ['import-backup', 'upload', 'Importer une sauvegarde', 'Restaure un fichier de sauvegarde JSON'], ['view:history', 'archive', 'Recalculer les bulletins archivés', 'Recalcul groupé selon les règles légales en vigueur']];
+    const t = [['export-employees', 'users', 'Liste des salariés (CSV)', 'Nom, matricule, téléphone et emploi'], ['export-report', 'file', 'Liste des bulletins (CSV)', 'Net, masse brute, charges fiscales et sociales'], ['backup', 'download', 'Sauvegarde complète (JSON)', 'Toutes les entreprises, paramètres et bulletins'], ['import-backup', 'upload', 'Importer une sauvegarde', 'Restaure un fichier de sauvegarde JSON'], ['view:history', 'archive', 'Recalculer les bulletins archivés', 'Recalcul groupé selon les règles légales en vigueur'], ['recalc-log', 'clock', 'Journal des mises à jour automatiques', 'Bulletins recalculés quand une règle change · annulation possible']];
     const lv = level('documents', recs), per = byPeriod(recs);
     const exports = '<h2 class="ws-h2">Exports et sauvegarde</h2><div class="ws-cards3">' + t.map(([a, i, l, d]) => '<button type="button" class="cp-card ws-doc" data-act="' + a + '"><span class="ico">' + icon(i) + '</span><div><b>' + esc(l) + '</b><span>' + esc(d) + '</span></div></button>').join('') + '</div>';
     let arch;
@@ -404,6 +404,7 @@
     if (a === 'ws-general') { if (window.CorintaShell) window.CorintaShell.go('dashboard'); return; }
     if (a.indexOf('module:') === 0) { go(a.slice(7)); return; }
     if (a.indexOf('panel:') === 0) { go(a.slice(6)); return; }
+    if (a === 'recalc-log') { if (window.CorintaAutoRecalc) window.CorintaAutoRecalc.showLog(0); return; }
     if (a === 'ws-export') { exportPayslips(); return; }
     if (a === 'ws-bulk') { bulkStatus(); return; }
     if (a === 'ws-clear-sel') { st.sel.clear(); render(); return; }
