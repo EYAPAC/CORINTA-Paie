@@ -104,9 +104,14 @@
     return { lv: 'month', y: n.y, m: p };
   }
   function byPeriod(recs) { const o = {}; recs.forEach((r) => { if (PERIOD_RE.test(r.period || '')) (o[r.period] = o[r.period] || []).push(r); }); return o; }
-  const yearList = (per) => { const s = new Set(Object.keys(per).map(yearOf)); s.add(yearOf(thisMonth())); return [...s].sort().reverse(); };
+  /* Dès décembre, le dossier de l'année suivante est créé automatiquement (il s'ouvre sur janvier, prêt pour les premiers bulletins). */
+  const nextYear = () => String(Number(yearOf(thisMonth())) + 1);
+  const newYearOpen = () => thisMonth().slice(5) === '12';
+  const yearList = (per) => { const s = new Set(Object.keys(per).map(yearOf)); s.add(yearOf(thisMonth())); if (newYearOpen()) s.add(nextYear()); return [...s].sort().reverse(); };
+  const yearEmpty = (y) => (y > yearOf(thisMonth()) ? 'Nouvelle année · prête pour janvier' : 'Aucun bulletin');
   function monthList(per, y) {
     const s = new Set(Object.keys(per).filter((p) => yearOf(p) === y));
+    if (y === nextYear() && newYearOpen()) s.add(y + '-01');
     if (y === yearOf(thisMonth())) for (let k = 1; k <= Number(thisMonth().slice(5)); k++) s.add(y + '-' + String(k).padStart(2, '0')); // mois sans bulletin : visibles seulement pour l'année en cours
     return [...s].sort().reverse();
   }
@@ -163,7 +168,7 @@
     const lv = level('payslips', recs), per = byPeriod(recs);
     if (lv.lv === 'month' || lv.lv === 'flat') return navBar('payslips', 'Bulletins de paie', lv) + payslipsTable(c, recs, lv);
     const tools = '<button type="button" class="cp-btn primary" data-act="new-payslip">' + icon('plus') + 'Créer un bulletin</button>';
-    const yearCard = (y, lists) => { const rs = flatten(lists); return folder('year|payslips|' + y, y, rs.length ? [plural(rs.length, 'bulletin') + ' · ' + plural(lists.length, 'mois'), 'Net à payer : ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length }); };
+    const yearCard = (y, lists) => { const rs = flatten(lists); return folder('year|payslips|' + y, y, rs.length ? [plural(rs.length, 'bulletin') + ' · ' + plural(lists.length, 'mois'), 'Net à payer : ' + esc(D.money(netOf(rs)))] : [yearEmpty(y)], { empty: !rs.length }); };
     const monthCard = (p, rs) => folder('month|payslips|' + p, monthName(p), rs.length ? [plural(rs.length, 'bulletin'), 'Brut ' + esc(D.money(grossOf(rs))), 'Net ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length, badge: rs.length ? badgeOf(paidOf(rs) + '/' + rs.length + ' payé' + (paidOf(rs) > 1 ? 's' : ''), paidOf(rs) === rs.length ? 'success' : 'neutral') : '' });
     const sub = lv.lv === 'root' ? 'Un dossier par année, puis un dossier par mois' : 'Année ' + lv.y + ' · un dossier par mois';
     return pageHead('Bulletins de paie', c.name + ' · ' + sub, tools) + navBar('payslips', 'Bulletins de paie', lv) + folderGrid('payslips', lv, per, yearCard, monthCard);
@@ -177,7 +182,7 @@
     const sumState = (p) => obligationsOf(c, m, p);
     const yearCard = (y, lists) => {
       const ps = Object.keys(per).filter((p) => yearOf(p) === y), todo = ps.reduce((s, p) => s + sumState(p).filter((x) => !x.done).length, 0), late = ps.some((p) => sumState(p).some((x) => !x.done && x.days < 0));
-      return folder('year|declarations|' + y, y, ps.length ? [plural(ps.length, 'mois') + ' traité' + (ps.length > 1 ? 's' : ''), todo ? plural(todo, 'déclaration') + ' à faire' : 'Toutes les déclarations faites'] : ['Aucune période traitée'], { empty: !ps.length, badge: ps.length ? badgeOf(todo ? (late ? 'En retard' : 'À faire') : 'À jour', todo ? (late ? 'danger' : 'warning') : 'success') : '' });
+      return folder('year|declarations|' + y, y, ps.length ? [plural(ps.length, 'mois') + ' traité' + (ps.length > 1 ? 's' : ''), todo ? plural(todo, 'déclaration') + ' à faire' : 'Toutes les déclarations faites'] : [y > yearOf(thisMonth()) ? yearEmpty(y) : 'Aucune période traitée'], { empty: !ps.length, badge: ps.length ? badgeOf(todo ? (late ? 'En retard' : 'À faire') : 'À jour', todo ? (late ? 'danger' : 'warning') : 'success') : '' });
     };
     const monthCard = (p, rs) => {
       if (!rs.length) return folder('month|declarations|' + p, monthName(p), ['Aucun bulletin', 'Aucune déclaration à prévoir'], { empty: true });
@@ -204,7 +209,7 @@
     const lv = level('charges', recs), per = byPeriod(recs);
     if (lv.lv === 'flat') return navBar('charges', 'Charges', lv) + chargesFlat(c);
     if (lv.lv === 'month') return navBar('charges', 'Charges', lv) + chargesMonth(c, lv.m, per[lv.m] || []);
-    const yearCard = (y, lists) => { const rs = flatten(lists), s = sumCharges(rs); return folder('year|charges|' + y, y, rs.length ? ['IPRES ' + esc(mny(s.ipres)), 'CSS ' + esc(mny(s.css)), 'Impôts (IR + TRIMF) ' + esc(mny(s.taxes))] : ['Aucun bulletin'], { empty: !rs.length }); };
+    const yearCard = (y, lists) => { const rs = flatten(lists), s = sumCharges(rs); return folder('year|charges|' + y, y, rs.length ? ['IPRES ' + esc(mny(s.ipres)), 'CSS ' + esc(mny(s.css)), 'Impôts (IR + TRIMF) ' + esc(mny(s.taxes))] : [yearEmpty(y)], { empty: !rs.length }); };
     const monthCard = (p, rs) => { const s = sumCharges(rs); return folder('month|charges|' + p, monthName(p), rs.length ? ['IPRES ' + esc(mny(s.ipres)), 'CSS ' + esc(mny(s.css)), 'Impôts ' + esc(mny(s.taxes))] : ['Aucun bulletin'], { empty: !rs.length }); };
     return pageHead('Charges et cotisations', c.name + ' · ' + (lv.lv === 'root' ? 'Un dossier par année, puis par mois' : 'Année ' + lv.y)) + navBar('charges', 'Charges', lv) + folderGrid('charges', lv, per, yearCard, monthCard);
   }
@@ -228,7 +233,7 @@
       const act = (a, ic, label, r) => '<button type="button" class="cp-act" title="' + label + '" aria-label="' + label + ' : ' + esc(r.name) + ' · ' + esc(D.monthLabel(r.period)) + '" data-act="' + a + '" data-i="' + r._index + '">' + icon(ic) + '</button>';
       arch = rs.length ? '<article class="cp-card"><div class="cp-table-wrap"><table class="cp-table" style="min-width:560px"><thead><tr><th>Employé</th><th>Période</th><th class="num">Net à payer</th><th>Statut</th><th>Actions</th></tr></thead><tbody>' + rs.map((r) => '<tr><td><button type="button" class="cp-person cp-person-btn" data-act="edit" data-i="' + r._index + '" title="Ouvrir le bulletin pour le modifier"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + '</span></div></button></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td><span class="cp-badge ' + ({ 'Brouillon': 'neutral', 'À valider': 'warning', 'Validé': 'info', 'Payé': 'success', 'Erreur': 'danger' }[D.recStatus(r)]) + '">' + esc(D.recStatus(r)) + '</span></td><td><div class="cp-actions">' + act('view', 'eye', 'Voir le bulletin (lecture seule)', r) + act('download', 'download', 'Télécharger en Excel ou PDF', r) + '</div></td></tr>').join('') + '</tbody></table></div></article>' : '<div class="cp-empty"><b>Aucun bulletin archivé' + (lv.lv === 'month' ? ' en ' + esc(D.monthLabel(lv.m)) : '') + '</b><span>Les bulletins enregistrés sont classés ici automatiquement.</span></div>';
     } else {
-      const yearCard = (y, lists) => { const rs = flatten(lists); return folder('year|documents|' + y, y, rs.length ? [plural(rs.length, 'bulletin') + ' · ' + plural(lists.length, 'mois'), 'Net à payer : ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length }); };
+      const yearCard = (y, lists) => { const rs = flatten(lists); return folder('year|documents|' + y, y, rs.length ? [plural(rs.length, 'bulletin') + ' · ' + plural(lists.length, 'mois'), 'Net à payer : ' + esc(D.money(netOf(rs)))] : [yearEmpty(y)], { empty: !rs.length }); };
       const monthCard = (p, rs) => folder('month|documents|' + p, monthName(p), rs.length ? [plural(rs.length, 'bulletin'), 'Net ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length });
       arch = folderGrid('documents', lv, per, yearCard, monthCard);
     }
