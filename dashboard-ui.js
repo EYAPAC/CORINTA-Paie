@@ -177,17 +177,59 @@
     if (a === 'import-backup') { $('importDataBtn').click(); return; }
     if (a === 'employee') { loadEmployee(el.dataset.id); return; }
     const i = el ? Number(el.dataset.i) : -1;
-    if (a === 'view') { openPayslipRecord(i); return; }
-    if (a === 'download') {
-      try { withRecord(i, () => exportPayslipXlsx()); } catch (err) { alert('Le téléchargement a échoué : ' + ((err && err.message) || err)); }
-      return;
-    }
+    if (a === 'view') { previewRecord(i); return; }          // œil : consultation seule, rien n'est modifié
+    if (a === 'edit') { openPayslipRecord(i); return; }      // clic sur le salarié : bulletin ouvert pour modification
+    if (a === 'download') { chooseDownload(i); return; }     // flèche : choix Excel ou PDF
     if (a === 'done') {
       const c = ORG.items.find((x) => x.id === cid) || company(), p = el.dataset.period, k = el.dataset.key;
       c.obligations = c.obligations || {};
       (el.dataset.mode === 'quarterly' ? window.CorintaLegal.quarterMonths(p) : [p]).forEach((mo) => { c.obligations[mo] = c.obligations[mo] || {}; c.obligations[mo][k] = true; });
       persistOrg(); toast('Échéance marquée comme faite'); refreshVisible(); return;
     }
+  }
+  /* ───────── Consulter / télécharger un bulletin enregistré ───────── */
+  const recLabel = (x) => (x.name || 'Salarié') + ' · ' + D.monthLabel(x.period);
+  const slug = (s) => String(s || 'salarie').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '-');
+  function xlsxOf(i) { try { withRecord(i, () => exportPayslipXlsx()); } catch (err) { alert('Le téléchargement a échoué : ' + ((err && err.message) || err)); } }
+  /** Aperçu en lecture seule (même mise en page que le fichier Excel, A4 une page). Le formulaire de saisie n'est pas touché. */
+  function previewRecord(i) {
+    const x = readHistoryStore()[i]; if (!x) { toast('Bulletin introuvable'); return; }
+    const modal = $('excelPreviewModal'), btn = $('excelPreviewDownload'), h2 = modal.querySelector('h2'), origClick = btn.onclick, origTitle = h2.textContent;
+    const restore = () => { btn.onclick = origClick; btn.textContent = 'Télécharger le .xlsx'; h2.textContent = origTitle; };
+    try { withRecord(i, () => previewPayslipXlsx()); } catch (err) { alert('Aperçu impossible : ' + ((err && err.message) || err)); }
+    if (modal.classList.contains('hidden')) { restore(); return; }
+    h2.textContent = 'Bulletin de paie · ' + recLabel(x);
+    btn.onclick = () => xlsxOf(i);
+    const obs = new MutationObserver(() => { if (modal.classList.contains('hidden')) { restore(); obs.disconnect(); } });
+    obs.observe(modal, { attributes: true, attributeFilter: ['class'] });
+  }
+  /** PDF : le bulletin est affiché puis imprimé avec la mise en page A4 (une page) ; l'écran d'origine est rétabli ensuite. */
+  function pdfOf(i) {
+    const x = readHistoryStore()[i]; if (!x) { toast('Bulletin introuvable'); return; }
+    const ws = window.CorintaWS, back = ws && ws.isOpen() ? { id: ws.state.companyId, module: ws.state.module } : null, title = document.title;
+    openPayslipRecord(i);
+    document.title = 'bulletin-' + slug(x.name) + '-' + (x.period || 'periode');
+    const done = () => { window.removeEventListener('afterprint', done); document.title = title; if (back && ws) ws.open(back.id, back.module); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => window.print(), 350);
+  }
+  function chooseDownload(i) {
+    const x = readHistoryStore()[i]; if (!x) { toast('Bulletin introuvable'); return; }
+    let m = $('dlModal');
+    if (!m) {
+      m = document.createElement('div'); m.id = 'dlModal'; m.className = 'modal hidden'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'dlTitle');
+      m.innerHTML = '<div class="modal-card"><h2 id="dlTitle">Télécharger le bulletin</h2><p class="muted" id="dlSub"></p><div class="modal-actions"><button type="button" class="btn primary" data-dl="xlsx">Excel · .xlsx</button><button type="button" class="btn primary" data-dl="pdf">PDF</button><button type="button" class="btn" data-dl="cancel">Annuler</button></div></div>';
+      document.body.appendChild(m);
+      m.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-dl]'), idx = Number(m.dataset.i);
+        if (!b && e.target !== m) return;
+        m.classList.add('hidden');
+        if (b && b.dataset.dl === 'xlsx') xlsxOf(idx); else if (b && b.dataset.dl === 'pdf') pdfOf(idx);
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') m.classList.add('hidden'); });
+    }
+    m.dataset.i = String(i); $('dlSub').textContent = recLabel(x) + ' — bulletin A4 sur une page, même mise en page pour les deux formats.';
+    m.classList.remove('hidden'); m.querySelector('[data-dl=xlsx]').focus();
   }
   function setStatus(index, value) {
     if (D.STATUSES.indexOf(value) < 0) return;
@@ -293,7 +335,21 @@
     window[name] = function () { const r = base.apply(this, arguments); refreshVisible(); return r; };
   });
 
-  window.CorintaUI = { act, setStatus, withRecord };
+  /** Enregistre le bulletin affiché (création ou mise à jour du même salarié et de la même période) puis le valide. */
+  function saveAndValidate() {
+    if (!$('name').value.trim()) { toast('Saisissez le nom du salarié avant l’enregistrement'); return; }
+    if (!validateHireDate()) return;
+    saveToFolder();
+    const c = company(), period = $('period').value || '', h = readHistoryStore();
+    const i = h.findIndex((x) => x.companyId === c.id && x.period === period && x.employeeId === ACTIVE_EMPLOYEE);
+    if (i < 0) return;
+    h[i].status = 'Validé';
+    if (!writeStore('paieHistory', h)) return;
+    queueCloudSync(); toast('Bulletin enregistré et validé'); refreshVisible();
+  }
+  $('saveValidate').addEventListener('click', saveAndValidate);
+
+  window.CorintaUI = { act, setStatus, withRecord, previewRecord, pdfOf };
 
   buildGeneralSkeleton();
   buildCompanySkeleton();

@@ -105,8 +105,8 @@
       const sel = status === 'Erreur' ? '<span class="cp-badge danger">Erreur</span>' : '<span class="cp-badge-select"><span class="cp-badge ' + ({ 'Brouillon': 'neutral', 'À valider': 'warning', 'Validé': 'info', 'Payé': 'success' }[status]) + '">' + esc(status) + '</span><select aria-label="Changer le statut du bulletin de ' + esc(r.name) + '" data-act="status" data-i="' + r._index + '">' + D.STATUSES.map((s) => '<option' + (s === status ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></span>';
       const act = (a, ic, label, extra) => '<button type="button" class="cp-act' + (extra || '') + '" title="' + label + '" aria-label="' + label + ' : ' + esc(r.name) + ' · ' + esc(D.monthLabel(r.period)) + '" data-act="' + a + '" data-i="' + r._index + '">' + icon(ic) + '</button>';
       return '<tr><td class="ws-chk"><input type="checkbox" data-sel="' + r._index + '" aria-label="Sélectionner le bulletin de ' + esc(r.name) + ' (' + esc(D.monthLabel(r.period)) + ')"' + (status === 'Erreur' ? ' disabled' : '') + (st.sel.has(r._index) ? ' checked' : '') + '></td>' +
-        '<td><div class="cp-person"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + (mat ? ' · ' + esc(mat) : '') + '</span></div></div></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num">' + esc(D.money(D.recGross(r))) + '</td><td class="num">' + esc(D.money(ded)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td>' + sel + '</td>' +
-        '<td><div class="cp-actions">' + act('view', 'eye', 'Ouvrir / modifier le bulletin') + act('download', 'download', 'Télécharger (Excel)') + act('print', 'printer', 'Imprimer') + act('delete', 'trash', 'Supprimer le bulletin', ' danger') + '</div></td></tr>';
+        '<td><button type="button" class="cp-person cp-person-btn" data-act="edit" data-i="' + r._index + '" title="Ouvrir le bulletin pour le modifier" aria-label="Ouvrir le bulletin de ' + esc(r.name) + ' (' + esc(D.monthLabel(r.period)) + ') pour le modifier"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + (mat ? ' · ' + esc(mat) : '') + '</span></div></button></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num">' + esc(D.money(D.recGross(r))) + '</td><td class="num">' + esc(D.money(ded)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td>' + sel + '</td>' +
+        '<td><div class="cp-actions">' + act('view', 'eye', 'Voir le bulletin (lecture seule)') + act('download', 'download', 'Télécharger en Excel ou PDF') + act('delete', 'trash', 'Supprimer le bulletin', ' danger') + '</div></td></tr>';
     }).join('');
     const filtered = !!(st.sq || st.fPeriod || st.fStatus);
     const stat = (l, v) => '<div class="ws-sum"><span>' + l + '</span><b>' + esc(v) + '</b></div>';
@@ -244,7 +244,6 @@
     if (a === 'ws-bulk') { bulkStatus(); return; }
     if (a === 'ws-clear-sel') { st.sel.clear(); render(); return; }
     if (a === 'ws-reset-filters') { st.sq = ''; st.fPeriod = ''; st.fStatus = ''; st.sel.clear(); render(); return; }
-    if (a === 'print') { const i = Number(el.dataset.i); if (!readHistoryStore()[i]) return; openPayslipRecord(i); setTimeout(() => window.print(), 350); return; }
     if (a === 'delete') { deletePayslip(Number(el.dataset.i)); st.sel.clear(); render(); return; }
     if (a === 'export-employees') { $('exportEmployeeList').click(); return; }
     if (a === 'support') {
@@ -267,7 +266,7 @@
       const me = e.target.closest('[data-metric]'); if (me) { st.metric = me.dataset.metric; render(); return; }
       const ra = e.target.closest('[data-range]'); if (ra) { st.range = ra.dataset.range; if (st.range === 'custom' && !st.from) { const p = PERIOD_RE.test(st.period) ? st.period : latest(allRecords().filter((r) => r.companyId === st.companyId)); st.to = p; st.from = D.addMonths(p, -5); } render(); return; }
       const dc = e.target.closest('[data-decl]'); if (dc) { st.decl = dc.dataset.decl; render(); return; }
-      const sr = e.target.closest('[data-sr]'); if (sr) { $('wsSearch').value = ''; search(); if (sr.dataset.sr === 'emp') UI.act('employee', { dataset: { id: sr.dataset.id } }); else UI.act('view', { dataset: { i: sr.dataset.id } }); return; }
+      const sr = e.target.closest('[data-sr]'); if (sr) { $('wsSearch').value = ''; search(); if (sr.dataset.sr === 'emp') UI.act('employee', { dataset: { id: sr.dataset.id } }); else UI.act('edit', { dataset: { i: sr.dataset.id } }); return; }
       if (e.target.closest('#wsUser')) { const m = $('wsMenu'), show = m.classList.contains('hidden'); m.classList.toggle('hidden', !show); $('wsUser').setAttribute('aria-expanded', String(show)); return; }
       if (e.target.closest('#wsBell')) { if (st.module !== 'dashboard') go('dashboard'); const card = $('wsAlertsCard'); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       const b = e.target.closest('[data-act]'); if (b && b.tagName !== 'SELECT') { $('wsMenu').classList.add('hidden'); handleAct(b.dataset.act, b); return; }
