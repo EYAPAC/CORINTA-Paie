@@ -314,3 +314,25 @@ body.has-cnav .main { margin-left: var(--cnav-w); }
   body.has-cnav .cp-gbar { top: var(--cnav-h); }
 }
 @media print { .cnav { display: none !important; } }
+
+/* ───────── Menu rétractable (modèle « icon rail » shadcn/ui) et sous-menus (Flowbite) ───────── */
+.side .nav .nv-group > button { width: 100%; }
+.nv-flash { animation: nvFlash 1.4s ease; }
+@keyframes nvFlash { 0%, 60% { box-shadow: 0 0 0 3px rgba(31, 102, 229, .55); } 100% { box-shadow: var(--cp-shadow); } }
+.nav-collapse { margin-left: auto; align-self: flex-start; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid rgba(255, 255, 255, .28); border-radius: 8px; background: rgba(255, 255, 255, .08); color: #fff; cursor: pointer; flex: 0 0 28px; }
+.nav-collapse svg { width: 14px; height: 14px; transform: rotate(180deg); transition: transform .2s; }
+.nav-collapse:hover { background: rgba(255, 255, 255, .18); }
+.nav-collapse:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(133, 183, 255, .55); }
+@media (min-width: 901px) {
+  .side, .layout { transition: width .2s, grid-template-columns .2s; }
+  body.side-collapsed { --side-w: 76px; }
+  body.side-collapsed .side { padding-left: 10px; padding-right: 10px; overflow-x: hidden; }
+  body.side-collapsed .side-brand { flex-direction: column; padding-bottom: 14px; gap: 10px; }
+  body.side-collapsed .side-brand div, body.side-collapsed .side-promo, body.side-collapsed .side .foot, body.side-collapsed .nv-sub, body.side-collapsed .nv-chev, body.side-collapsed .side .nav button span { display: none !important; }
+  body.side-collapsed .side .nav button { justify-content: center; padding: 12px 0; }
+  body.side-collapsed .nav-collapse { margin: 0; }
+  body.side-collapsed .nav-collapse svg { transform: none; }
+}
+@media (max-width: 900px) { .nav-collapse { display: none; } }
+@media (prefers-reduced-motion: reduce) { .side, .layout, .nav-collapse svg, .nv-flash { transition: none; animation: none; } }
+#config .card { scroll-margin-top: 84px; }
