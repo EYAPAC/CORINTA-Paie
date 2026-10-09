@@ -336,3 +336,8 @@ body.has-cnav .main { margin-left: var(--cnav-w); }
 @media (max-width: 900px) { .nav-collapse { display: none; } }
 @media (prefers-reduced-motion: reduce) { .side, .layout, .nav-collapse svg, .nv-flash { transition: none; animation: none; } }
 #config .card { scroll-margin-top: 84px; }
+
+.cnav button.cnav-company { background: rgba(8, 40, 110, .32); color: #fff; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.cnav button.cnav-company:hover { background: rgba(8, 40, 110, .5); }
+.cnav button.cnav-company.active { background: #fff; color: #0f4bb3; }
+@media (max-width: 900px) { .cnav button.cnav-company { background: #0a3a8c; color: #fff; margin: 0; } .cnav button.cnav-company.active { background: #fff; color: #0f4bb3; box-shadow: inset 0 0 0 2px #0a3a8c; border-radius: 10px; } }

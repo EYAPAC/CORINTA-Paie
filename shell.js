@@ -26,7 +26,7 @@
   const SETTINGS_SUB = [['Tableau de bord', 'Tableau de bord et stockage'], ['Barèmes par secteur', 'Barèmes par secteur'], ['Taux et plafonds', 'Taux et plafonds'], ['Barème annuel IR', 'Barème IR'], ['Barème TRIMF', 'Barème TRIMF'], ['Rubriques récurrentes', 'Rubriques récurrentes']];
   const PREF = 'cpSideCollapsed';
   const TABS = [
-    ['dashboard', 'home', 'Tableau de bord'], ['employees', 'users', 'Employés'], ['payslips', 'wallet', 'Bulletins de paie'],
+    ['employees', 'users', 'Employés'], ['payslips', 'wallet', 'Bulletins de paie'],
     ['declarations', 'file', 'Déclarations sociales et fiscales'], ['charges', 'coin', 'Charges et cotisations'],
     ['documents', 'archive', 'Documents'], ['settings', 'building2', 'Informations de l’entreprise'], ['params', 'gear', 'Paramètres de l’entreprise']
   ];
@@ -45,7 +45,7 @@
     const bar = document.createElement('nav');
     bar.id = 'cnav'; bar.className = 'cnav hidden'; bar.setAttribute('aria-label', 'Navigation du dossier');
     bar.innerHTML = '<button type="button" class="cnav-back" data-c="companies" aria-label="Retour à la liste des entreprises">' + icon('chevron').replace('<svg', '<svg style="transform:rotate(180deg)"') + '<span>Entreprises</span></button>' +
-      '<span class="cnav-company" title="Dossier ouvert">' + icon('building2') + '<b id="cnavName">—</b></span>' +
+      '<button type="button" class="cnav-company" data-c="dashboard" title="Tableau de bord du dossier (affiché à l’ouverture)">' + icon('building2') + '<b id="cnavName">—</b></button>' +
       '<div class="cnav-tabs" role="tablist">' + TABS.map(([k, i, t]) => '<button type="button" role="tab" data-c="' + k + '">' + icon(i) + '<span>' + esc(t) + '</span></button>').join('') + '</div>';
     document.body.appendChild(bar);
     const t = document.createElement('button');
@@ -94,7 +94,8 @@
     if (k === 'companies') { ctx = ''; activateView('companies'); return; }
     if (k === 'config') activateView('config');
   }
-  function goTab(k) {
+  function goTab(k) { // « dashboard » : le nom du dossier ramène à son tableau de bord
+   
     if (!ctx || !companyOf(ctx)) { activateView('companies'); return; }
     if (ORG.active !== ctx) setActiveCompany(ctx, true);
     WS.open(ctx, k);
