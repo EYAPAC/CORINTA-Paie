@@ -2,7 +2,7 @@
  * Corinta Pay — navigation à deux niveaux.
  *
  * 1) Menu principal (barre latérale bleue, toujours présente) : Tableau de bord · Entreprises · Paramètres.
- * 2) Barre du dossier (apparaît dès qu'une entreprise est ouverte, distincte du menu principal) :
+ * 2) Colonne du dossier (bleu vif, accolée au menu principal ; bande horizontale sur mobile) :
  *    Tableau de bord · Employés · Bulletins de paie · Déclarations sociales et fiscales · Charges et cotisations ·
  *    Documents · Informations de l'entreprise · Paramètres de l'entreprise.
  * Les anciens menus Bulletin / Archives / Paramétrage / Entreprise sont fusionnés ici, sans doublon :

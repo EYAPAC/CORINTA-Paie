@@ -10,7 +10,7 @@
   --cp-s1: #2f7de1; --cp-s2: #2fb67c; --cp-s3: #f4bd3c; --cp-s4: #8a68e3; --cp-s5: #ee6597; --cp-s6: #93a1b8;
   --cp-shadow: 0 4px 18px rgba(26, 62, 128, .07);
   --cp-focus: 0 0 0 3px rgba(31, 102, 229, .35);
-  position: fixed; inset: var(--cnav-h, 0px) 0 0 var(--side-w, 272px); z-index: 40; display: flex; flex-direction: column;
+  position: fixed; inset: var(--cnav-h, 0px) 0 0 calc(var(--side-w, 272px) + var(--cnav-w, 0px)); z-index: 40; display: flex; flex-direction: column;
   background: var(--cp-bg); color: var(--cp-ink); font-family: var(--cp-font);
 }
 #ws.hidden { display: none !important; }
