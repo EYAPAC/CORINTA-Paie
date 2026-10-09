@@ -16,7 +16,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = D.esc, icon = D.icon;
   const PERIOD_RE = /^[0-9]{4}-[0-9]{2}$/;
-  const st = { open: false, companyId: '', module: 'dashboard', decl: 'social', period: '', range: '6', from: '', to: '', metric: 'gross', q: '', fPeriod: '', fStatus: '', returnTo: null };
+  const st = { open: false, companyId: '', module: 'dashboard', decl: 'social', period: '', range: '6', from: '', to: '', metric: 'gross', q: '', fPeriod: '', fStatus: '', sq: '', sort: 'recent', sel: new Set(), returnTo: null };
   const MODULE_OF = { dashboard: 'dashboard', employees: 'payslips', payslips: 'payslips', pay: 'payslips', social: 'charges', taxes: 'charges', charges: 'charges', declarations: 'declarations', deadlines: 'declarations', documents: 'documents', settings: 'settings', params: 'params' };
   const DECL_OF = { social: 'social', taxes: 'taxes', charges: 'social' };
   const cur = (html) => html.split('FCFA').join('F CFA'); // le modèle écrit « F CFA »
@@ -84,21 +84,60 @@
       '<footer class="ws-foot"><span><b>Corinta Pay</b> · ' + esc(((document.getElementById('appVersion') || {}).textContent || '').replace('Version ', 'v')) + ' | Paie • RH • Conformité</span><span><i class="dot"></i>Données enregistrées sur cet appareil</span></footer></div>';
   }
 
+  const dedOf = (r) => (r.totals && r.totals.totalDeductions !== undefined ? Number(r.totals.totalDeductions) : Math.max(0, D.recGross(r) - D.recNet(r)));
+  const SORTS = { recent: 'Période : récente → ancienne', old: 'Période : ancienne → récente', name: 'Nom : A → Z', net: 'Net à payer : décroissant' };
+  const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'fr', { sensitivity: 'base' });
+  /* Lignes affichées : filtres (recherche, période, statut) puis tri — partagées par la page, les totaux et l'export. */
+  function payslipRows(recs) {
+    const q = st.sq.trim().toLocaleLowerCase('fr');
+    const rows = recs.filter((r) => (!st.fPeriod || r.period === st.fPeriod) && (!st.fStatus || D.recStatus(r) === st.fStatus) &&
+      (!q || String(r.name || '').toLocaleLowerCase('fr').includes(q) || String((r.fields || {}).mat || '').toLocaleLowerCase('fr').includes(q) || String((r.fields || {}).job || '').toLocaleLowerCase('fr').includes(q)));
+    const cmp = { recent: (a, b) => String(b.period).localeCompare(String(a.period)) || byName(a, b), old: (a, b) => String(a.period).localeCompare(String(b.period)) || byName(a, b), name: (a, b) => byName(a, b) || String(b.period).localeCompare(String(a.period)), net: (a, b) => D.recNet(b) - D.recNet(a) || byName(a, b) }[st.sort] || byName;
+    return rows.sort(cmp);
+  }
   function payslipsHTML(c, recs) {
     const periods = [...new Set(recs.map((r) => r.period).filter(Boolean))].sort().reverse();
-    let rows = recs.filter((r) => (!st.fPeriod || r.period === st.fPeriod) && (!st.fStatus || D.recStatus(r) === st.fStatus));
-    rows = rows.sort((a, b) => String(b.period).localeCompare(String(a.period)) || String(a.name).localeCompare(String(b.name), 'fr', { sensitivity: 'base' }));
+    const rows = payslipRows(recs), pickable = rows.filter((r) => D.recStatus(r) !== 'Erreur');
+    st.sel = new Set([...st.sel].filter((i) => pickable.some((r) => r._index === i)));
+    const sum = (f) => rows.reduce((s, r) => s + f(r), 0);
     const body = rows.map((r) => {
-      const status = D.recStatus(r), ded = r.totals && r.totals.totalDeductions !== undefined ? Number(r.totals.totalDeductions) : Math.max(0, D.recGross(r) - D.recNet(r));
+      const status = D.recStatus(r), ded = dedOf(r), mat = (r.fields || {}).mat;
       const sel = status === 'Erreur' ? '<span class="cp-badge danger">Erreur</span>' : '<span class="cp-badge-select"><span class="cp-badge ' + ({ 'Brouillon': 'neutral', 'À valider': 'warning', 'Validé': 'info', 'Payé': 'success' }[status]) + '">' + esc(status) + '</span><select aria-label="Changer le statut du bulletin de ' + esc(r.name) + '" data-act="status" data-i="' + r._index + '">' + D.STATUSES.map((s) => '<option' + (s === status ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></span>';
-      return '<tr><td><div class="cp-person"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + '</span></div></div></td><td>' + esc(D.monthLabel(r.period)) + '</td><td class="num">' + esc(D.money(D.recGross(r))) + '</td><td class="num">' + esc(D.money(ded)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td>' + sel + '</td>' +
-        '<td><div class="cp-actions"><button type="button" class="cp-act" title="Voir" aria-label="Voir le bulletin de ' + esc(r.name) + '" data-act="view" data-i="' + r._index + '">' + icon('eye') + '</button><button type="button" class="cp-act" title="Télécharger (Excel)" aria-label="Télécharger le bulletin de ' + esc(r.name) + '" data-act="download" data-i="' + r._index + '">' + icon('download') + '</button><button type="button" class="cp-act" title="Imprimer" aria-label="Imprimer le bulletin de ' + esc(r.name) + '" data-act="print" data-i="' + r._index + '">' + icon('printer') + '</button></div></td></tr>';
+      const act = (a, ic, label, extra) => '<button type="button" class="cp-act' + (extra || '') + '" title="' + label + '" aria-label="' + label + ' : ' + esc(r.name) + ' · ' + esc(D.monthLabel(r.period)) + '" data-act="' + a + '" data-i="' + r._index + '">' + icon(ic) + '</button>';
+      return '<tr><td class="ws-chk"><input type="checkbox" data-sel="' + r._index + '" aria-label="Sélectionner le bulletin de ' + esc(r.name) + ' (' + esc(D.monthLabel(r.period)) + ')"' + (status === 'Erreur' ? ' disabled' : '') + (st.sel.has(r._index) ? ' checked' : '') + '></td>' +
+        '<td><div class="cp-person"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + (mat ? ' · ' + esc(mat) : '') + '</span></div></div></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num">' + esc(D.money(D.recGross(r))) + '</td><td class="num">' + esc(D.money(ded)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td>' + sel + '</td>' +
+        '<td><div class="cp-actions">' + act('view', 'eye', 'Ouvrir / modifier le bulletin') + act('download', 'download', 'Télécharger (Excel)') + act('print', 'printer', 'Imprimer') + act('delete', 'trash', 'Supprimer le bulletin', ' danger') + '</div></td></tr>';
     }).join('');
-    return '<div class="ws-page-head"><div><h1>Bulletins de paie</h1><p>' + recs.length + ' bulletin' + (recs.length > 1 ? 's' : '') + ' enregistré' + (recs.length > 1 ? 's' : '') + ' · ' + rows.length + ' affiché' + (rows.length > 1 ? 's' : '') + '</p></div><div class="ws-tools">' +
+    const filtered = !!(st.sq || st.fPeriod || st.fStatus);
+    const stat = (l, v) => '<div class="ws-sum"><span>' + l + '</span><b>' + esc(v) + '</b></div>';
+    const bulk = st.sel.size ? '<div class="ws-bulk" role="region" aria-label="Actions groupées"><b>' + st.sel.size + ' bulletin' + (st.sel.size > 1 ? 's' : '') + ' sélectionné' + (st.sel.size > 1 ? 's' : '') + '</b><label class="ws-field"><span class="sr">Nouveau statut</span><select id="wsBulkStatus" aria-label="Nouveau statut">' + D.STATUSES.map((s) => '<option>' + s + '</option>').join('') + '</select></label><button type="button" class="cp-btn primary sm" data-act="ws-bulk">Appliquer le statut</button><button type="button" class="cp-btn sm" data-act="ws-clear-sel">Désélectionner</button></div>' : '';
+    return '<div class="ws-page-head"><div><h1>Bulletins de paie</h1><p>' + esc(c.name) + ' · ' + recs.length + ' bulletin' + (recs.length > 1 ? 's' : '') + ' enregistré' + (recs.length > 1 ? 's' : '') + ' · ' + rows.length + ' affiché' + (rows.length > 1 ? 's' : '') + '</p></div><div class="ws-tools">' +
+      '<button type="button" class="cp-btn" data-act="ws-export"' + (rows.length ? '' : ' disabled') + '>' + icon('download') + 'Télécharger la liste (CSV)' + (filtered ? ' filtrée' : '') + '</button><button type="button" class="cp-btn primary" data-act="new-payslip">' + icon('plus') + 'Créer un bulletin</button></div></div>' +
+      '<div class="ws-tools ws-filters"><div class="ws-field"><label for="wsPQ">Rechercher</label><input id="wsPQ" type="search" placeholder="Nom, matricule ou emploi" value="' + esc(st.sq) + '" autocomplete="off"></div>' +
       '<div class="ws-field"><label for="wsFP">Période</label><select id="wsFP"><option value="">Toutes</option>' + periods.map((p) => '<option value="' + p + '"' + (p === st.fPeriod ? ' selected' : '') + '>' + esc(D.monthLabel(p)) + '</option>').join('') + '</select></div>' +
       '<div class="ws-field"><label for="wsFS">Statut</label><select id="wsFS"><option value="">Tous</option>' + [...D.STATUSES, 'Erreur'].map((s) => '<option' + (s === st.fStatus ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div>' +
-      '<button type="button" class="cp-btn" data-act="export-report">' + icon('download') + 'Télécharger la liste (CSV)</button><button type="button" class="cp-btn primary" data-act="new-payslip">' + icon('plus') + 'Créer un bulletin</button></div></div>' +
-      '<article class="cp-card">' + (rows.length ? '<div class="cp-table-wrap"><table class="cp-table" style="min-width:760px"><thead><tr><th>Employé</th><th>Période</th><th class="num">Brut</th><th class="num">Retenues</th><th class="num">Net à payer</th><th>Statut</th><th>Actions</th></tr></thead><tbody>' + body + '</tbody></table></div>' : '<div class="cp-empty"><b>' + (recs.length ? 'Aucun bulletin pour ce filtre' : 'Aucun bulletin enregistré') + '</b><span>' + (recs.length ? 'Changez la période ou le statut.' : 'Préparez un bulletin puis enregistrez-le dans le dossier.') + '</span></div>') + '</article>';
+      '<div class="ws-field"><label for="wsSort">Trier par</label><select id="wsSort">' + Object.keys(SORTS).map((k) => '<option value="' + k + '"' + (k === st.sort ? ' selected' : '') + '>' + SORTS[k] + '</option>').join('') + '</select></div>' +
+      (filtered ? '<button type="button" class="cp-btn sm" data-act="ws-reset-filters">Réinitialiser</button>' : '') + '</div>' +
+      '<div class="ws-sums">' + stat('Bulletins affichés', String(rows.length)) + stat('Masse brute', D.money(sum(D.recGross))) + stat('Retenues', D.money(sum(dedOf))) + stat('Net à payer', D.money(sum(D.recNet))) + '</div>' + bulk +
+      '<article class="cp-card">' + (rows.length ? '<div class="cp-table-wrap"><table class="cp-table" style="min-width:860px"><thead><tr><th class="ws-chk"><input type="checkbox" id="wsAll" aria-label="Tout sélectionner"' + (pickable.length && st.sel.size === pickable.length ? ' checked' : '') + (pickable.length ? '' : ' disabled') + '></th><th>Employé</th><th>Période</th><th class="num">Brut</th><th class="num">Retenues</th><th class="num">Net à payer</th><th>Statut</th><th>Actions</th></tr></thead><tbody>' + body + '</tbody></table></div>' : '<div class="cp-empty"><b>' + (recs.length ? 'Aucun bulletin pour ce filtre' : 'Aucun bulletin enregistré') + '</b><span>' + (recs.length ? 'Changez la recherche, la période ou le statut.' : 'Préparez un bulletin puis enregistrez-le dans le dossier.') + '</span></div>') + '</article>';
+  }
+  function exportPayslips() {
+    const c = company(); if (!c) return;
+    const rows = payslipRows(allRecords().filter((r) => r.companyId === c.id));
+    if (!rows.length) { toast('Aucun bulletin à exporter avec ces filtres'); return; }
+    const num = (v) => Number(v) || 0;
+    csvDownload('bulletins-' + c.name + '.csv', [['Salarié', 'Matricule', 'Période', 'Statut', 'Masse salariale brute', 'Retenues', 'Net à payer', 'Charges fiscales IR + TRIMF', 'IPRES', 'CSS/CNSS employeur']].concat(rows.map((r) => {
+      const t = r.totals || {}, f = r.fields || {};
+      return [r.name, f.mat || '', r.period, D.recStatus(r), D.recGross(r), dedOf(r), D.recNet(r), t.fiscalCharges !== undefined ? t.fiscalCharges : num(f.ir) + num(f.trimf), num(t.ipresEmployee) + num(t.ipresEmployer), num(t.cssEmployer)];
+    })));
+    toast(rows.length + ' bulletin' + (rows.length > 1 ? 's' : '') + ' exporté' + (rows.length > 1 ? 's' : ''));
+  }
+  function bulkStatus() {
+    const v = $('wsBulkStatus') && $('wsBulkStatus').value; if (D.STATUSES.indexOf(v) < 0 || !st.sel.size) return;
+    const h = readHistoryStore(); let n = 0;
+    st.sel.forEach((i) => { if (h[i] && D.recStatus(h[i]) !== 'Erreur') { h[i].status = v; n++; } });
+    if (!n || !writeStore('paieHistory', h)) return;
+    queueCloudSync(); st.sel.clear(); toast(n + ' bulletin' + (n > 1 ? 's' : '') + ' : statut « ' + v + ' »'); render();
   }
 
   /* ───────── Rubrique : déclarations sociales ───────── */
@@ -151,6 +190,7 @@
       box.innerHTML = html;
       if (mod === st.lastModule) box.scrollTop = scroll;
       st.lastModule = mod;
+      if (focusId === 'wsPQ' && $('wsPQ')) { const f = $('wsPQ'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
       const un = userName(); $('wsUserName').textContent = un || 'Administrateur'; $('wsAvatar').textContent = (un || 'A').trim().slice(0, 1).toUpperCase();
       const n = m.alerts.filter((a) => a.level !== 'info').length, b = $('wsBellCount'); b.textContent = n > 9 ? '9+' : String(n); b.classList.toggle('hidden', n === 0);
       $('wsBell').setAttribute('aria-label', n ? n + ' alerte' + (n > 1 ? 's' : '') + ' à traiter' : 'Aucune alerte');
@@ -166,7 +206,7 @@
     const c = ORG.items.find((x) => x.id === id); if (!c) return;
     const key = panel || 'dashboard', prevCompany = st.companyId;
     st.companyId = id; st.module = MODULE_OF[key] || 'dashboard'; if (DECL_OF[key]) st.decl = DECL_OF[key];
-    if (prevCompany !== id) { st.period = ''; st.q = ''; st.fPeriod = ''; st.fStatus = ''; }
+    if (prevCompany !== id) { st.period = ''; st.q = ''; st.fPeriod = ''; st.fStatus = ''; st.sq = ''; st.sel.clear(); }
     st.open = true; st.returnTo = null; syncPill();
     ACTIVE_FOLDER_PAGE = false;
     if (activeCompany().id !== id) setActiveCompany(id, true);
@@ -200,6 +240,12 @@
     if (a === 'ws-general') { if (window.CorintaShell) window.CorintaShell.go('dashboard'); return; }
     if (a.indexOf('module:') === 0) { go(a.slice(7)); return; }
     if (a.indexOf('panel:') === 0) { go(a.slice(6)); return; }
+    if (a === 'ws-export') { exportPayslips(); return; }
+    if (a === 'ws-bulk') { bulkStatus(); return; }
+    if (a === 'ws-clear-sel') { st.sel.clear(); render(); return; }
+    if (a === 'ws-reset-filters') { st.sq = ''; st.fPeriod = ''; st.fStatus = ''; st.sel.clear(); render(); return; }
+    if (a === 'print') { const i = Number(el.dataset.i); if (!readHistoryStore()[i]) return; openPayslipRecord(i); setTimeout(() => window.print(), 350); return; }
+    if (a === 'delete') { deletePayslip(Number(el.dataset.i)); st.sel.clear(); render(); return; }
     if (a === 'export-employees') { $('exportEmployeeList').click(); return; }
     if (a === 'support') {
       const mail = (S.supportEmail || '').trim();
@@ -233,10 +279,13 @@
       if (t.matches('select[data-act="status"]')) { UI.setStatus(Number(t.dataset.i), t.value); return; }
       if (t.id === 'wsPeriod' && PERIOD_RE.test(t.value)) { st.period = t.value; render(); return; }
       if (t.id === 'wsFrom' || t.id === 'wsTo') { st.from = $('wsFrom').value; st.to = $('wsTo').value; if (st.from && st.to) render(); return; }
+      if (t.matches('input[data-sel]')) { const i = Number(t.dataset.sel); if (t.checked) st.sel.add(i); else st.sel.delete(i); render(); return; }
+      if (t.id === 'wsAll') { st.sel.clear(); if (t.checked) $('wsContent').querySelectorAll('input[data-sel]:not(:disabled)').forEach((x) => st.sel.add(Number(x.dataset.sel))); render(); return; }
+      if (t.id === 'wsSort') { st.sort = t.value; render(); return; }
       if (t.id === 'wsFP') { st.fPeriod = t.value; render(); return; }
       if (t.id === 'wsFS') { st.fStatus = t.value; render(); }
     });
-    root.addEventListener('input', (e) => { if (e.target.id === 'wsSearch') search(); });
+    root.addEventListener('input', (e) => { if (e.target.id === 'wsPQ') { st.sq = e.target.value; render(); } if (e.target.id === 'wsSearch') search(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st.open) { $('wsMenu').classList.add('hidden'); $('wsResults').classList.add('hidden'); } });
   }
 
