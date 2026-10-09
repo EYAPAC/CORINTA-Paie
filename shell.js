@@ -3,7 +3,7 @@
  *
  * 1) Menu principal (barre latérale bleue, toujours présente) : Tableau de bord · Entreprises · Paramètres.
  * 2) Colonne du dossier (bleu vif, accolée au menu principal ; bande horizontale sur mobile) :
- *    Tableau de bord · Employés · Bulletins de paie · Déclarations sociales et fiscales · Charges et cotisations ·
+ *    Tableau de bord · Bulletins de paie · Déclarations sociales et fiscales · Charges et cotisations ·
  *    Documents · Informations de l'entreprise · Paramètres de l'entreprise.
  * Les anciens menus Bulletin / Archives / Paramétrage / Entreprise sont fusionnés ici, sans doublon :
  * « Créer un bulletin » est un bouton des pages Employés et Bulletins de paie, « Archives » une carte de Documents.
@@ -26,7 +26,7 @@
   const SETTINGS_SUB = [['Tableau de bord', 'Tableau de bord et stockage'], ['Barèmes par secteur', 'Barèmes par secteur'], ['Taux et plafonds', 'Taux et plafonds'], ['Barème annuel IR', 'Barème IR'], ['Barème TRIMF', 'Barème TRIMF'], ['Rubriques récurrentes', 'Rubriques récurrentes']];
   const PREF = 'cpSideCollapsed';
   const TABS = [
-    ['employees', 'users', 'Employés'], ['payslips', 'wallet', 'Bulletins de paie'],
+    ['payslips', 'wallet', 'Bulletins de paie'],
     ['declarations', 'file', 'Déclarations sociales et fiscales'], ['charges', 'coin', 'Charges et cotisations'],
     ['documents', 'archive', 'Documents'], ['settings', 'building2', 'Informations de l’entreprise'], ['params', 'gear', 'Paramètres de l’entreprise']
   ];

@@ -17,7 +17,7 @@
   const esc = D.esc, icon = D.icon;
   const PERIOD_RE = /^[0-9]{4}-[0-9]{2}$/;
   const st = { open: false, companyId: '', module: 'dashboard', decl: 'social', period: '', range: '6', from: '', to: '', metric: 'gross', q: '', fPeriod: '', fStatus: '', returnTo: null };
-  const MODULE_OF = { dashboard: 'dashboard', employees: 'employees', payslips: 'payslips', pay: 'payslips', social: 'charges', taxes: 'charges', charges: 'charges', declarations: 'declarations', deadlines: 'declarations', documents: 'documents', settings: 'settings', params: 'params' };
+  const MODULE_OF = { dashboard: 'dashboard', employees: 'payslips', payslips: 'payslips', pay: 'payslips', social: 'charges', taxes: 'charges', charges: 'charges', declarations: 'declarations', deadlines: 'declarations', documents: 'documents', settings: 'settings', params: 'params' };
   const DECL_OF = { social: 'social', taxes: 'taxes', charges: 'social' };
   const cur = (html) => html.split('FCFA').join('F CFA'); // le modèle écrit « F CFA »
 
@@ -64,7 +64,7 @@
     }).join('') + '</ul>';
   }
   function shortcutsHTML() {
-    const t = [['new-payslip', 'file2', 't-blue', 'Créer un bulletin'], ['module:social', 'building2', 't-teal', 'Déclarer les charges sociales'], ['module:employees', 'users', 't-violet', 'Gérer les employés'], ['export-report', 'download', 't-orange', 'Exporter un rapport']];
+    const t = [['new-payslip', 'file2', 't-blue', 'Créer un bulletin'], ['module:social', 'building2', 't-teal', 'Déclarer les charges sociales'], ['module:payslips', 'file', 't-violet', 'Consulter les bulletins'], ['export-report', 'download', 't-orange', 'Exporter un rapport']];
     return '<div class="ws-shortcuts">' + t.map(([a, i, c, l]) => '<button type="button" class="ws-shortcut" data-act="' + a + '"><span class="ico ' + c + '">' + icon(i) + '</span>' + esc(l) + '</button>').join('') + '</div>';
   }
   function dashboardHTML(m, c) {
@@ -84,28 +84,6 @@
       '<footer class="ws-foot"><span><b>Corinta Pay</b> · ' + esc(((document.getElementById('appVersion') || {}).textContent || '').replace('Version ', 'v')) + ' | Paie • RH • Conformité</span><span><i class="dot"></i>Données enregistrées sur cet appareil</span></footer></div>';
   }
 
-  /* ───────── Rubrique : employés ───────── */
-  function employeesData(c, recs) {
-    const mineOf = (e) => recs.filter((r) => String(r.employeeId || '') === String(e.id) || (e.mat && String((r.fields || {}).mat || '') === String(e.mat)) || (!!r.name && r.name === e.name)).sort((a, b) => String(b.period).localeCompare(String(a.period)) || b._index - a._index)[0] || null;
-    const list = c.employees.map((e) => ({ id: e.id, name: e.name || '—', job: e.job || (e.fields || {}).job || '', mat: e.mat || (e.fields || {}).mat || '', hire: (e.fields || {}).hire || '', last: mineOf(e) }));
-    const known = new Set(list.map((p) => p.name));
-    recs.forEach((r) => { if (r.name && !known.has(r.name) && !list.some((p) => p.last && p.last.name === r.name)) { known.add(r.name); list.push({ id: '', name: r.name, job: (r.fields || {}).job || '', mat: (r.fields || {}).mat || '', hire: (r.fields || {}).hire || '', last: r }); } });
-    return list.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
-  }
-  function employeesHTML(c, recs) {
-    const q = st.q.trim().toLocaleLowerCase('fr'), all = employeesData(c, recs), rows = all.filter((p) => !q || p.name.toLocaleLowerCase('fr').includes(q) || String(p.mat).toLocaleLowerCase('fr').includes(q));
-    const body = rows.map((p) => {
-      const l = p.last;
-      return '<tr><td><div class="cp-person"><span class="cp-avatar">' + esc(D.initials(p.name)) + '</span><div><b>' + esc(p.name) + '</b><span>' + esc(p.job || '—') + '</span></div></div></td><td>' + esc(p.mat || '—') + '</td><td>' + esc(frDate(p.hire)) + '</td>' +
-        '<td>' + (l ? esc(D.monthLabel(l.period)) + ' · <b>' + esc(D.money(D.recNet(l))) + '</b>' : '<span class="cp-sub">Aucun bulletin</span>') + '</td>' +
-        '<td><div class="cp-actions">' + (l ? '<button type="button" class="cp-act" title="Voir le dernier bulletin" aria-label="Voir le dernier bulletin de ' + esc(p.name) + '" data-act="view" data-i="' + l._index + '">' + icon('eye') + '</button><button type="button" class="cp-act" title="Télécharger (Excel)" aria-label="Télécharger le dernier bulletin de ' + esc(p.name) + '" data-act="download" data-i="' + l._index + '">' + icon('download') + '</button>' : '') +
-        (p.id ? '<button type="button" class="cp-btn sm" data-act="employee" data-id="' + esc(p.id) + '">Fiche / bulletin</button>' : '') + '</div></td></tr>';
-    }).join('');
-    return '<div class="ws-page-head"><div><h1>Employés</h1><p>' + all.length + ' salarié' + (all.length > 1 ? 's' : '') + ' · classement alphabétique</p></div><div class="ws-tools"><div class="ws-field"><label for="wsQ">Rechercher</label><input id="wsQ" type="search" placeholder="Nom ou matricule" value="' + esc(st.q) + '"></div><button type="button" class="cp-btn" data-act="export-employees">' + icon('download') + 'Télécharger la liste (CSV)</button><button type="button" class="cp-btn primary" data-act="new-payslip">' + icon('plus') + 'Créer un bulletin</button></div></div>' +
-      '<article class="cp-card">' + (rows.length ? '<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Employé</th><th>Matricule</th><th>Embauche</th><th>Dernier bulletin</th><th>Actions</th></tr></thead><tbody>' + body + '</tbody></table></div>' : '<div class="cp-empty"><b>' + (all.length ? 'Aucun résultat' : 'Aucun salarié dans ce dossier') + '</b><span>' + (all.length ? 'Modifiez la recherche.' : 'Créez un bulletin : le salarié sera ajouté au dossier à l’enregistrement.') + '</span></div>') + '</article>';
-  }
-
-  /* ───────── Rubrique : paie (bulletins) ───────── */
   function payslipsHTML(c, recs) {
     const periods = [...new Set(recs.map((r) => r.period).filter(Boolean))].sort().reverse();
     let rows = recs.filter((r) => (!st.fPeriod || r.period === st.fPeriod) && (!st.fStatus || D.recStatus(r) === st.fStatus));
@@ -168,12 +146,11 @@
     if (!c) { close({ returning: false }); if (window.CorintaShell) window.CorintaShell.go('companies'); else activateView('companies'); return; }
     try {
       const recs = allRecords().filter((r) => r.companyId === c.id), m = modelFor(c, recs), mod = st.module;
-      const html = mod === 'employees' ? employeesHTML(c, recs) : mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m) : mod === 'charges' ? chargesHTML(c) : mod === 'documents' ? documentsHTML(c) : mod === 'settings' ? settingsHTML(c, m) : mod === 'params' ? paramsHTML(c, m) : dashboardHTML(m, c);
+      const html = mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m) : mod === 'charges' ? chargesHTML(c) : mod === 'documents' ? documentsHTML(c) : mod === 'settings' ? settingsHTML(c, m) : mod === 'params' ? paramsHTML(c, m) : dashboardHTML(m, c);
       const box = $('wsContent'), scroll = box.scrollTop, focusId = document.activeElement && document.activeElement.id;
       box.innerHTML = html;
       if (mod === st.lastModule) box.scrollTop = scroll;
       st.lastModule = mod;
-      if (focusId && $(focusId) && /^(wsQ)$/.test(focusId)) { const f = $(focusId); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
       const un = userName(); $('wsUserName').textContent = un || 'Administrateur'; $('wsAvatar').textContent = (un || 'A').trim().slice(0, 1).toUpperCase();
       const n = m.alerts.filter((a) => a.level !== 'info').length, b = $('wsBellCount'); b.textContent = n > 9 ? '9+' : String(n); b.classList.toggle('hidden', n === 0);
       $('wsBell').setAttribute('aria-label', n ? n + ' alerte' + (n > 1 ? 's' : '') + ' à traiter' : 'Aucune alerte');
@@ -259,7 +236,7 @@
       if (t.id === 'wsFP') { st.fPeriod = t.value; render(); return; }
       if (t.id === 'wsFS') { st.fStatus = t.value; render(); }
     });
-    root.addEventListener('input', (e) => { if (e.target.id === 'wsQ') { st.q = e.target.value; render(); } if (e.target.id === 'wsSearch') search(); });
+    root.addEventListener('input', (e) => { if (e.target.id === 'wsSearch') search(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st.open) { $('wsMenu').classList.add('hidden'); $('wsResults').classList.add('hidden'); } });
   }
 
