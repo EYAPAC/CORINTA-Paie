@@ -180,3 +180,28 @@
 .cp-act.danger { color: #b3261e; } .cp-act.danger:hover { background: #fdeceb; border-color: #f3b6b0; }
 .cp-btn[disabled] { opacity: .5; cursor: not-allowed; }
 @media (max-width: 1050px) { .ws-sums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ───────── Dossiers Année › Mois ───────── */
+.ws-navbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ws-crumbs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--cp-muted); }
+.ws-crumbs svg { width: 18px; height: 18px; color: var(--cp-primary); }
+.ws-crumbs b { color: var(--cp-ink); }
+.ws-crumb { border: 0; background: none; font: inherit; color: var(--cp-primary-700); cursor: pointer; padding: 4px 6px; border-radius: 8px; }
+.ws-crumb:hover { background: var(--cp-primary-50); text-decoration: underline; }
+.ws-crumb:focus-visible { outline: none; box-shadow: var(--cp-focus); }
+.ws-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.ws-folder { position: relative; display: flex; gap: 14px; align-items: flex-start; text-align: left; background: #fff; border: 1px solid var(--cp-line); border-radius: 14px; padding: 16px; font: inherit; color: var(--cp-ink); cursor: pointer; box-shadow: var(--cp-shadow); transition: transform .12s, border-color .12s; }
+.ws-folder:hover { transform: translateY(-2px); border-color: #a8c6f7; }
+.ws-folder:focus-visible { outline: none; box-shadow: var(--cp-focus); }
+.ws-folder .ico { width: 44px; height: 44px; border-radius: 12px; background: #e3edff; color: var(--cp-primary-700); display: grid; place-items: center; flex: 0 0 44px; }
+.ws-folder .ico svg { width: 24px; height: 24px; }
+.ws-folder .body { display: grid; gap: 3px; min-width: 0; }
+.ws-folder .body b { font-size: 17px; } .ws-folder .body span { font-size: 12.5px; color: var(--cp-muted); }
+.ws-folder .cp-badge { position: absolute; top: 12px; right: 12px; }
+.ws-folder.empty { background: #f7f9fd; border-style: dashed; box-shadow: none; }
+.ws-folder.empty .ico { background: #eef1f6; color: #7b8aa5; } .ws-folder.empty .body b { color: #5a6a86; }
+.ws-h2 { margin: 6px 0 0; font-size: 17px; }
+.ws-obl { display: grid; gap: 10px; align-content: start; }
+.ws-obl-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; } .ws-obl-head h2 { margin: 0; font-size: 18px; }
+.ws-obl-amount { font-size: 22px; font-weight: 800; display: grid; } .ws-obl-amount small { font-size: 11.5px; font-weight: 500; color: var(--cp-muted); }
+.ws-done { margin: 0; display: flex; gap: 6px; align-items: center; color: #11794d; font-weight: 600; font-size: 13px; } .ws-done svg { width: 16px; height: 16px; }

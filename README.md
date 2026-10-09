@@ -45,6 +45,10 @@ Le repère initial des droits congés est de 2 jours ouvrables par mois de servi
 
 Le menu principal est rétractable (bouton en haut du menu ou Ctrl+B) : il se réduit en rail d'icônes, préférence mémorisée, réduit par défaut sous 1 180 px. « Paramètres » déplie un sous-menu qui défile jusqu'à la carte voulue (stockage, barèmes, taux, IR, TRIMF, rubriques). Sous 900 px, le menu devient un tiroir. Aucune dépendance ajoutée (modèles inspirés de shadcn/ui « icon rail » et Flowbite « sidebar »).
 
+## Classement par année et par mois
+
+Dans un dossier d'entreprise, **Bulletins de paie**, **Déclarations sociales et fiscales**, **Charges et cotisations** et **Documents › Archives** sont classés Année › Mois (fil d'Ariane cliquable). Les dossiers sont calculés à partir des bulletins enregistrés, sans copie de données. Le dernier mois traité s'ouvre par défaut ; les mois sans bulletin ne sont visibles que pour l'année en cours ; « Vue à plat » affiche l'ancienne vue (tous les bulletins, cumul). Un dossier de mois « Déclarations » détaille IPRES, CSS et impôts (montant, échéance légale, état, « Marquer fait »).
+
 ## Espace dossier d'entreprise
 
 Ouvrir un dossier (« Ouvrir » ou clic dans la liste) affiche un espace dédié (`workspace.js` / `workspace.css`) : menu latéral (Tableau de bord, Employés, Paie, Déclarations sociales, Documents, Paramètres), barre de recherche limitée au dossier, cloche d'échéances, KPI, graphique d'évolution, répartition des charges, raccourcis, derniers bulletins, informations importantes et carte d'aide. Toutes les valeurs viennent des bulletins et paramètres existants (aucune donnée inventée : états vides sinon). Le bouton « Contacter le support » utilise l'e-mail saisi dans Paramètres de paie → Tableau de bord.

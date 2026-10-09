@@ -84,20 +84,183 @@
       '<footer class="ws-foot"><span><b>Corinta Pay</b> · ' + esc(((document.getElementById('appVersion') || {}).textContent || '').replace('Version ', 'v')) + ' | Paie • RH • Conformité</span><span><i class="dot"></i>Données enregistrées sur cet appareil</span></footer></div>';
   }
 
+  /* ───────── Classement Année › Mois (bulletins, déclarations, charges, documents) ─────────
+     Les dossiers sont calculés à partir des bulletins enregistrés : aucune donnée n'est dupliquée.
+     À l'ouverture d'une rubrique, le dossier du mois courant (dernier mois traité) est ouvert ; le fil d'Ariane remonte à l'année puis à la liste des années.
+     « Vue à plat » affiche l'ancienne page (tous les bulletins / cumul de toutes les périodes). */
+  st.nav = { payslips: {}, declarations: {}, charges: {}, documents: {} };
+  const resetNav = (mod) => { if (st.nav[mod]) st.nav[mod] = {}; };
+  const yearOf = (p) => String(p).slice(0, 4);
+  const monthName = (p) => D.monthLabel(p).split(' ')[0];
+  const thisMonth = () => todayISO().slice(0, 7);
+  const plural = (n, w) => n + ' ' + w + (n > 1 && !/s$/.test(w) ? 's' : '');
+  function level(key, recs) {
+    const n = st.nav[key];
+    if (n.flat) return { lv: 'flat' };
+    if (n.m) return { lv: 'month', y: yearOf(n.m), m: n.m };
+    if (n.y) return { lv: 'year', y: n.y };
+    if (n.root) return { lv: 'root' };
+    const p = latest(recs); n.m = p; n.y = yearOf(p);
+    return { lv: 'month', y: n.y, m: p };
+  }
+  function byPeriod(recs) { const o = {}; recs.forEach((r) => { if (PERIOD_RE.test(r.period || '')) (o[r.period] = o[r.period] || []).push(r); }); return o; }
+  const yearList = (per) => { const s = new Set(Object.keys(per).map(yearOf)); s.add(yearOf(thisMonth())); return [...s].sort().reverse(); };
+  function monthList(per, y) {
+    const s = new Set(Object.keys(per).filter((p) => yearOf(p) === y));
+    if (y === yearOf(thisMonth())) for (let k = 1; k <= Number(thisMonth().slice(5)); k++) s.add(y + '-' + String(k).padStart(2, '0')); // mois sans bulletin : visibles seulement pour l'année en cours
+    return [...s].sort().reverse();
+  }
+  function navBar(key, rootLabel, lv) {
+    const b = (nav, t) => '<button type="button" class="ws-crumb" data-nav="' + nav + '">' + esc(t) + '</button>', sep = '<span aria-hidden="true">›</span>';
+    let h = lv.lv === 'root' ? '<b>' + esc(rootLabel) + '</b>' : b('root|' + key, rootLabel);
+    if (lv.lv === 'flat') h += sep + '<b>Vue à plat</b>';
+    else {
+      if (lv.y) h += sep + (lv.lv === 'year' ? '<b>' + esc(lv.y) + '</b>' : b('year|' + key + '|' + lv.y, lv.y));
+      if (lv.m) h += sep + '<b>' + esc(monthName(lv.m)) + '</b>';
+    }
+    return '<div class="ws-navbar"><nav class="ws-crumbs" aria-label="Fil d’Ariane">' + icon('folder') + h + '</nav><button type="button" class="cp-btn sm" data-nav="' + (lv.lv === 'flat' ? 'root|' + key : 'flat|' + key) + '">' + (lv.lv === 'flat' ? 'Vue par dossiers' : 'Vue à plat') + '</button></div>';
+  }
+  const folder = (nav, title, lines, o) => '<button type="button" class="ws-folder' + (o && o.empty ? ' empty' : '') + '" data-nav="' + nav + '"><span class="ico">' + icon('folder') + '</span><span class="body"><b>' + esc(title) + '</b>' + lines.map((l) => '<span>' + l + '</span>').join('') + '</span>' + ((o && o.badge) || '') + '</button>';
+  const badgeOf = (txt, tone) => '<span class="cp-badge ' + tone + '">' + esc(txt) + '</span>';
+  /* Liste des dossiers (années ou mois) ; yearCard / monthCard fabriquent les cartes selon la rubrique. */
+  function folderGrid(key, lv, per, yearCard, monthCard) {
+    if (lv.lv === 'root') return '<div class="ws-folders">' + yearList(per).map((y) => yearCard(y, Object.keys(per).filter((p) => yearOf(p) === y).map((p) => per[p]))).join('') + '</div>';
+    return '<div class="ws-folders">' + monthList(per, lv.y).map((p) => monthCard(p, per[p] || [])).join('') + '</div>';
+  }
+  const flatten = (lists) => lists.reduce((a, l) => a.concat(l), []);
+  const netOf = (rs) => rs.reduce((s, r) => s + D.recNet(r), 0), grossOf = (rs) => rs.reduce((s, r) => s + D.recGross(r), 0);
+  const paidOf = (rs) => rs.filter((r) => D.recStatus(r) === 'Payé').length;
+  const pageHead = (title, sub, tools) => '<div class="ws-page-head"><div><h1>' + esc(title) + '</h1><p>' + esc(sub) + '</p></div>' + (tools ? '<div class="ws-tools">' + tools + '</div>' : '') + '</div>';
+  const emptyYear = (y) => '<div class="cp-empty"><b>Aucun bulletin en ' + esc(y) + '</b><span>Les dossiers se créent tout seuls à l’enregistrement des bulletins.</span></div>';
+
+  /* Totaux de charges d'une liste de bulletins (même logique que le cumul du dossier ; null = détail indisponible). */
+  function sumCharges(rs) {
+    const o = { ir: 0, trimf: 0, ipresE: 0, ipresP: 0, cssE: 0, cssP: 0 }, k = { tax: 0, ipres: 0, css: 0 }, has = (v) => v !== undefined && v !== null && v !== '', n = (v) => Number(v) || 0;
+    rs.forEach((x) => {
+      const t = x.totals || {}, f = x.fields || {};
+      if (has(t.irAmount) || has(t.trimfAmount) || has(f.ir) || has(f.trimf)) { k.tax++; o.ir += has(t.irAmount) ? n(t.irAmount) : n(f.ir); o.trimf += has(t.trimfAmount) ? n(t.trimfAmount) : n(f.trimf); }
+      if (has(t.ipresEmployee) || has(t.ipresEmployer)) { k.ipres++; o.ipresE += n(t.ipresEmployee); o.ipresP += n(t.ipresEmployer); }
+      if (has(t.cssEmployee) || has(t.cssEmployer)) { k.css++; o.cssE += n(t.cssEmployee); o.cssP += n(t.cssEmployer); }
+    });
+    const none = !rs.length;
+    return { n: rs.length, known: k, ir: k.tax || none ? o.ir : null, trimf: k.tax || none ? o.trimf : null, taxes: k.tax || none ? o.ir + o.trimf : null, ipresE: k.ipres || none ? o.ipresE : null, ipresP: k.ipres || none ? o.ipresP : null, ipres: k.ipres || none ? o.ipresE + o.ipresP : null, cssE: k.css || none ? o.cssE : null, cssP: k.css || none ? o.cssP : null, css: k.css || none ? o.cssE + o.cssP : null };
+  }
+  const mny = (v) => (v === null ? '—' : D.money(v));
+
+  /* Échéances légales d'un mois (CSS art. 93, CGI art. 185) et état de suivi. */
+  function obligationsOf(c, m, p) {
+    const social = window.CorintaLegal.socialMode(m.employeeCount), tax = S.taxRemittance === 'quarterly' ? 'quarterly' : 'monthly', today = Date.parse(todayISO());
+    return D.OBLIGATIONS.map((o) => {
+      const mode = o.key === 'impots' ? tax : social, due = window.CorintaLegal.dueMonth(p, mode) + '-' + String(window.CorintaLegal.DUE_DAY).padStart(2, '0');
+      return { o, mode, due, done: !!(c.obligations && c.obligations[p] && c.obligations[p][o.key]), days: Math.round((Date.parse(due) - today) / 864e5) };
+    });
+  }
+  const stateTone = (s) => (s.done ? 'success' : s.days < 0 ? 'danger' : s.days <= 10 ? 'warning' : 'info');
+  const stateText = (s) => (s.done ? 'Fait' : s.days < 0 ? 'Retard ' + Math.abs(s.days) + ' j' : 'J−' + s.days);
+
+  /* ── Bulletins de paie ── */
+  function payslipsHTML(c, recs) {
+    const lv = level('payslips', recs), per = byPeriod(recs);
+    if (lv.lv === 'month' || lv.lv === 'flat') return navBar('payslips', 'Bulletins de paie', lv) + payslipsTable(c, recs, lv);
+    const tools = '<button type="button" class="cp-btn primary" data-act="new-payslip">' + icon('plus') + 'Créer un bulletin</button>';
+    const yearCard = (y, lists) => { const rs = flatten(lists); return folder('year|payslips|' + y, y, rs.length ? [plural(rs.length, 'bulletin') + ' · ' + plural(lists.length, 'mois'), 'Net à payer : ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length }); };
+    const monthCard = (p, rs) => folder('month|payslips|' + p, monthName(p), rs.length ? [plural(rs.length, 'bulletin'), 'Brut ' + esc(D.money(grossOf(rs))), 'Net ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length, badge: rs.length ? badgeOf(paidOf(rs) + '/' + rs.length + ' payé' + (paidOf(rs) > 1 ? 's' : ''), paidOf(rs) === rs.length ? 'success' : 'neutral') : '' });
+    const sub = lv.lv === 'root' ? 'Un dossier par année, puis un dossier par mois' : 'Année ' + lv.y + ' · un dossier par mois';
+    return pageHead('Bulletins de paie', c.name + ' · ' + sub, tools) + navBar('payslips', 'Bulletins de paie', lv) + folderGrid('payslips', lv, per, yearCard, monthCard);
+  }
+
+  /* ── Déclarations sociales et fiscales ── */
+  function declarationsHTML(c, m, recs) {
+    const lv = level('declarations', recs), per = byPeriod(recs);
+    if (lv.lv === 'flat') return navBar('declarations', 'Déclarations', lv) + declarationsFlat(c, m);
+    if (lv.lv === 'month') return navBar('declarations', 'Déclarations', lv) + declarationsMonth(c, m, lv.m, per[lv.m] || []);
+    const sumState = (p) => obligationsOf(c, m, p);
+    const yearCard = (y, lists) => {
+      const ps = Object.keys(per).filter((p) => yearOf(p) === y), todo = ps.reduce((s, p) => s + sumState(p).filter((x) => !x.done).length, 0), late = ps.some((p) => sumState(p).some((x) => !x.done && x.days < 0));
+      return folder('year|declarations|' + y, y, ps.length ? [plural(ps.length, 'mois') + ' traité' + (ps.length > 1 ? 's' : ''), todo ? plural(todo, 'déclaration') + ' à faire' : 'Toutes les déclarations faites'] : ['Aucune période traitée'], { empty: !ps.length, badge: ps.length ? badgeOf(todo ? (late ? 'En retard' : 'À faire') : 'À jour', todo ? (late ? 'danger' : 'warning') : 'success') : '' });
+    };
+    const monthCard = (p, rs) => {
+      if (!rs.length) return folder('month|declarations|' + p, monthName(p), ['Aucun bulletin', 'Aucune déclaration à prévoir'], { empty: true });
+      const s = sumState(p), done = s.filter((x) => x.done).length, late = s.some((x) => !x.done && x.days < 0);
+      return folder('month|declarations|' + p, monthName(p), [done + '/' + s.length + ' déclarations faites', s.filter((x) => !x.done).length ? 'Prochaine : ' + esc(frDate(s.filter((x) => !x.done).sort((a, b) => a.due.localeCompare(b.due))[0].due)) : 'Rien à régler'], { badge: badgeOf(done === s.length ? 'À jour' : late ? 'En retard' : 'À faire', done === s.length ? 'success' : late ? 'danger' : 'warning') });
+    };
+    return pageHead('Déclarations sociales et fiscales', c.name + ' · ' + (lv.lv === 'root' ? 'Un dossier par année, puis par mois' : 'Année ' + lv.y), '<button type="button" class="cp-btn" data-act="module:charges">' + icon('coin') + 'Voir les charges et cotisations</button>') + navBar('declarations', 'Déclarations', lv) + folderGrid('declarations', lv, per, yearCard, monthCard);
+  }
+  function declarationsMonth(c, m, p, rs) {
+    const head = pageHead('Déclarations · ' + D.monthLabel(p), c.name + ' · ' + plural(rs.length, 'bulletin') + ' du mois', '<button type="button" class="cp-btn" data-nav="month|charges|' + p + '">' + icon('coin') + 'Charges de ce mois</button>');
+    if (!rs.length) return head + '<div class="cp-empty"><b>Aucun bulletin en ' + esc(D.monthLabel(p)) + '</b><span>Aucune déclaration n’est due tant qu’aucun bulletin n’est enregistré pour ce mois.</span></div>';
+    const cs = sumCharges(rs), amount = { ipres: cs.ipres, css: cs.css, impots: cs.taxes };
+    const cards = obligationsOf(c, m, p).map((s) => {
+      const q = Math.ceil(Number(p.slice(5)) / 3), when = s.mode === 'quarterly' ? 'Trimestre T' + q + ' ' + yearOf(p) + ' · ' : '';
+      return '<article class="cp-card ws-obl"><div class="ws-obl-head"><div><h2>' + esc(s.o.label) + '</h2><p class="cp-sub">' + esc(s.o.desc) + '</p></div>' + badgeOf(stateText(s), stateTone(s)) + '</div><div class="ws-obl-amount">' + esc(mny(amount[s.o.key])) + '<small>' + (s.o.key === 'impots' ? 'IR + TRIMF retenus' : 'parts salariale et patronale') + '</small></div><p class="cp-sub">' + esc(when) + 'à régler avant le ' + esc(frDate(s.due)) + '</p>' +
+        (s.done ? '<p class="ws-done">' + icon('check') + ' Déclaration marquée comme faite</p>' : '<button type="button" class="cp-btn sm primary" data-act="done" data-key="' + esc(s.o.key) + '" data-period="' + esc(p) + '" data-mode="' + esc(s.mode) + '">Marquer fait</button>') + '</article>';
+    }).join('');
+    const note = (cs.known.tax < cs.n || cs.known.ipres < cs.n || cs.known.css < cs.n) ? '<p class="cp-sub">Certains bulletins anciens n’ont pas de détail de charges : leurs montants ne sont pas estimés (recalcul depuis Documents › Recalculer les bulletins archivés).</p>' : '';
+    return head + '<div class="ws-cards3">' + cards + '</div>' + note;
+  }
+
+  /* ── Charges et cotisations ── */
+  function chargesHTML(c, recs) {
+    const lv = level('charges', recs), per = byPeriod(recs);
+    if (lv.lv === 'flat') return navBar('charges', 'Charges', lv) + chargesFlat(c);
+    if (lv.lv === 'month') return navBar('charges', 'Charges', lv) + chargesMonth(c, lv.m, per[lv.m] || []);
+    const yearCard = (y, lists) => { const rs = flatten(lists), s = sumCharges(rs); return folder('year|charges|' + y, y, rs.length ? ['IPRES ' + esc(mny(s.ipres)), 'CSS ' + esc(mny(s.css)), 'Impôts (IR + TRIMF) ' + esc(mny(s.taxes))] : ['Aucun bulletin'], { empty: !rs.length }); };
+    const monthCard = (p, rs) => { const s = sumCharges(rs); return folder('month|charges|' + p, monthName(p), rs.length ? ['IPRES ' + esc(mny(s.ipres)), 'CSS ' + esc(mny(s.css)), 'Impôts ' + esc(mny(s.taxes))] : ['Aucun bulletin'], { empty: !rs.length }); };
+    return pageHead('Charges et cotisations', c.name + ' · ' + (lv.lv === 'root' ? 'Un dossier par année, puis par mois' : 'Année ' + lv.y)) + navBar('charges', 'Charges', lv) + folderGrid('charges', lv, per, yearCard, monthCard);
+  }
+  function chargesMonth(c, p, rs) {
+    const head = pageHead('Charges · ' + D.monthLabel(p), c.name + ' · ' + plural(rs.length, 'bulletin') + ' du mois', '<button type="button" class="cp-btn" data-nav="month|declarations|' + p + '">' + icon('file') + 'Déclarations de ce mois</button>');
+    if (!rs.length) return head + '<div class="cp-empty"><b>Aucun bulletin en ' + esc(D.monthLabel(p)) + '</b><span>Les charges apparaissent dès qu’un bulletin est enregistré pour ce mois.</span></div>';
+    const s = sumCharges(rs), metric = (l, v) => '<div class="ws-metric"><span>' + esc(l) + '</span><b>' + esc(mny(v)) + '</b></div>';
+    const cov = (k) => '(' + k + '/' + s.n + ' avec détail)';
+    return head + '<article class="cp-card"><div class="cp-card-head"><div><h2>Charges sociales</h2><p class="cp-sub">IPRES et CSS ' + cov(Math.min(s.known.ipres, s.known.css)) + '</p></div></div><div class="ws-cards3">' + metric('IPRES · part salariale', s.ipresE) + metric('IPRES · part patronale', s.ipresP) + metric('CSS · part patronale', s.cssP) + '</div></article>' +
+      '<article class="cp-card"><div class="cp-card-head"><div><h2>Charges fiscales</h2><p class="cp-sub">Impôt sur le revenu et TRIMF retenus ' + cov(s.known.tax) + '</p></div></div><div class="ws-cards3">' + metric('Impôt sur le revenu', s.ir) + metric('TRIMF', s.trimf) + metric('Total retenu', s.taxes) + '</div></article>';
+  }
+
+  /* ── Documents : exports + archives des bulletins par année et mois ── */
+  function documentsHTML(c, recs) {
+    const t = [['export-employees', 'users', 'Liste des salariés (CSV)', 'Nom, matricule, téléphone et emploi'], ['export-report', 'file', 'Liste des bulletins (CSV)', 'Net, masse brute, charges fiscales et sociales'], ['backup', 'download', 'Sauvegarde complète (JSON)', 'Toutes les entreprises, paramètres et bulletins'], ['import-backup', 'upload', 'Importer une sauvegarde', 'Restaure un fichier de sauvegarde JSON'], ['view:history', 'archive', 'Recalculer les bulletins archivés', 'Recalcul groupé selon les règles légales en vigueur']];
+    const lv = level('documents', recs), per = byPeriod(recs);
+    const exports = '<h2 class="ws-h2">Exports et sauvegarde</h2><div class="ws-cards3">' + t.map(([a, i, l, d]) => '<button type="button" class="cp-card ws-doc" data-act="' + a + '"><span class="ico">' + icon(i) + '</span><div><b>' + esc(l) + '</b><span>' + esc(d) + '</span></div></button>').join('') + '</div>';
+    let arch;
+    if (lv.lv === 'month' || lv.lv === 'flat') {
+      const rs = (lv.lv === 'month' ? (per[lv.m] || []) : recs.filter((r) => PERIOD_RE.test(r.period || ''))).slice().sort((a, b) => String(b.period).localeCompare(String(a.period)) || String(a.name).localeCompare(String(b.name), 'fr', { sensitivity: 'base' }));
+      const act = (a, ic, label, r) => '<button type="button" class="cp-act" title="' + label + '" aria-label="' + label + ' : ' + esc(r.name) + ' · ' + esc(D.monthLabel(r.period)) + '" data-act="' + a + '" data-i="' + r._index + '">' + icon(ic) + '</button>';
+      arch = rs.length ? '<article class="cp-card"><div class="cp-table-wrap"><table class="cp-table" style="min-width:560px"><thead><tr><th>Employé</th><th>Période</th><th class="num">Net à payer</th><th>Statut</th><th>Actions</th></tr></thead><tbody>' + rs.map((r) => '<tr><td><button type="button" class="cp-person cp-person-btn" data-act="edit" data-i="' + r._index + '" title="Ouvrir le bulletin pour le modifier"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + '</span></div></button></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td><span class="cp-badge ' + ({ 'Brouillon': 'neutral', 'À valider': 'warning', 'Validé': 'info', 'Payé': 'success', 'Erreur': 'danger' }[D.recStatus(r)]) + '">' + esc(D.recStatus(r)) + '</span></td><td><div class="cp-actions">' + act('view', 'eye', 'Voir le bulletin (lecture seule)', r) + act('download', 'download', 'Télécharger en Excel ou PDF', r) + '</div></td></tr>').join('') + '</tbody></table></div></article>' : '<div class="cp-empty"><b>Aucun bulletin archivé' + (lv.lv === 'month' ? ' en ' + esc(D.monthLabel(lv.m)) : '') + '</b><span>Les bulletins enregistrés sont classés ici automatiquement.</span></div>';
+    } else {
+      const yearCard = (y, lists) => { const rs = flatten(lists); return folder('year|documents|' + y, y, rs.length ? [plural(rs.length, 'bulletin') + ' · ' + plural(lists.length, 'mois'), 'Net à payer : ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length }); };
+      const monthCard = (p, rs) => folder('month|documents|' + p, monthName(p), rs.length ? [plural(rs.length, 'bulletin'), 'Net ' + esc(D.money(netOf(rs)))] : ['Aucun bulletin'], { empty: !rs.length });
+      arch = folderGrid('documents', lv, per, yearCard, monthCard);
+    }
+    return pageHead('Documents', 'Exports et archives du dossier ' + c.name) + exports + '<h2 class="ws-h2">Archives des bulletins</h2>' + navBar('documents', 'Archives', lv) + arch;
+  }
+  function navTo(spec) {
+    const [kind, key, val] = spec.split('|');
+    if (!st.nav[key]) return;
+    if (kind === 'root') st.nav[key] = { root: true };
+    else if (kind === 'year') st.nav[key] = { y: val };
+    else if (kind === 'month') st.nav[key] = { y: yearOf(val), m: val };
+    else if (kind === 'flat') st.nav[key] = { flat: true };
+    st.module = key;
+    st.sel.clear(); render(); $('wsContent').scrollTop = 0;
+  }
+
   const dedOf = (r) => (r.totals && r.totals.totalDeductions !== undefined ? Number(r.totals.totalDeductions) : Math.max(0, D.recGross(r) - D.recNet(r)));
   const SORTS = { recent: 'Période : récente → ancienne', old: 'Période : ancienne → récente', name: 'Nom : A → Z', net: 'Net à payer : décroissant' };
   const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'fr', { sensitivity: 'base' });
   /* Lignes affichées : filtres (recherche, période, statut) puis tri — partagées par la page, les totaux et l'export. */
-  function payslipRows(recs) {
+  function payslipRows(recs, lockedPeriod) {
     const q = st.sq.trim().toLocaleLowerCase('fr');
-    const rows = recs.filter((r) => (!st.fPeriod || r.period === st.fPeriod) && (!st.fStatus || D.recStatus(r) === st.fStatus) &&
+    const rows = recs.filter((r) => (lockedPeriod || !st.fPeriod || r.period === st.fPeriod) && (!st.fStatus || D.recStatus(r) === st.fStatus) &&
       (!q || String(r.name || '').toLocaleLowerCase('fr').includes(q) || String((r.fields || {}).mat || '').toLocaleLowerCase('fr').includes(q) || String((r.fields || {}).job || '').toLocaleLowerCase('fr').includes(q)));
     const cmp = { recent: (a, b) => String(b.period).localeCompare(String(a.period)) || byName(a, b), old: (a, b) => String(a.period).localeCompare(String(b.period)) || byName(a, b), name: (a, b) => byName(a, b) || String(b.period).localeCompare(String(a.period)), net: (a, b) => D.recNet(b) - D.recNet(a) || byName(a, b) }[st.sort] || byName;
     return rows.sort(cmp);
   }
-  function payslipsHTML(c, recs) {
+  function payslipsTable(c, recs, lv) {
+    const locked = lv.lv === 'month';
+    if (locked) recs = recs.filter((r) => r.period === lv.m);
     const periods = [...new Set(recs.map((r) => r.period).filter(Boolean))].sort().reverse();
-    const rows = payslipRows(recs), pickable = rows.filter((r) => D.recStatus(r) !== 'Erreur');
+    const rows = payslipRows(recs, locked), pickable = rows.filter((r) => D.recStatus(r) !== 'Erreur');
     st.sel = new Set([...st.sel].filter((i) => pickable.some((r) => r._index === i)));
     const sum = (f) => rows.reduce((s, r) => s + f(r), 0);
     const body = rows.map((r) => {
@@ -108,13 +271,13 @@
         '<td><button type="button" class="cp-person cp-person-btn" data-act="edit" data-i="' + r._index + '" title="Ouvrir le bulletin pour le modifier" aria-label="Ouvrir le bulletin de ' + esc(r.name) + ' (' + esc(D.monthLabel(r.period)) + ') pour le modifier"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + (mat ? ' · ' + esc(mat) : '') + '</span></div></button></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num">' + esc(D.money(D.recGross(r))) + '</td><td class="num">' + esc(D.money(ded)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td>' + sel + '</td>' +
         '<td><div class="cp-actions">' + act('view', 'eye', 'Voir le bulletin (lecture seule)') + act('download', 'download', 'Télécharger en Excel ou PDF') + act('delete', 'trash', 'Supprimer le bulletin', ' danger') + '</div></td></tr>';
     }).join('');
-    const filtered = !!(st.sq || st.fPeriod || st.fStatus);
+    const filtered = !!(st.sq || (!locked && st.fPeriod) || st.fStatus);
     const stat = (l, v) => '<div class="ws-sum"><span>' + l + '</span><b>' + esc(v) + '</b></div>';
     const bulk = st.sel.size ? '<div class="ws-bulk" role="region" aria-label="Actions groupées"><b>' + st.sel.size + ' bulletin' + (st.sel.size > 1 ? 's' : '') + ' sélectionné' + (st.sel.size > 1 ? 's' : '') + '</b><label class="ws-field"><span class="sr">Nouveau statut</span><select id="wsBulkStatus" aria-label="Nouveau statut">' + D.STATUSES.map((s) => '<option>' + s + '</option>').join('') + '</select></label><button type="button" class="cp-btn primary sm" data-act="ws-bulk">Appliquer le statut</button><button type="button" class="cp-btn sm" data-act="ws-clear-sel">Désélectionner</button></div>' : '';
-    return '<div class="ws-page-head"><div><h1>Bulletins de paie</h1><p>' + esc(c.name) + ' · ' + recs.length + ' bulletin' + (recs.length > 1 ? 's' : '') + ' enregistré' + (recs.length > 1 ? 's' : '') + ' · ' + rows.length + ' affiché' + (rows.length > 1 ? 's' : '') + '</p></div><div class="ws-tools">' +
+    return '<div class="ws-page-head"><div><h1>Bulletins de paie' + (locked ? ' · ' + esc(D.monthLabel(lv.m)) : '') + '</h1><p>' + esc(c.name) + ' · ' + recs.length + ' bulletin' + (recs.length > 1 ? 's' : '') + ' enregistré' + (recs.length > 1 ? 's' : '') + ' · ' + rows.length + ' affiché' + (rows.length > 1 ? 's' : '') + '</p></div><div class="ws-tools">' +
       '<button type="button" class="cp-btn" data-act="ws-export"' + (rows.length ? '' : ' disabled') + '>' + icon('download') + 'Télécharger la liste (CSV)' + (filtered ? ' filtrée' : '') + '</button><button type="button" class="cp-btn primary" data-act="new-payslip">' + icon('plus') + 'Créer un bulletin</button></div></div>' +
       '<div class="ws-tools ws-filters"><div class="ws-field"><label for="wsPQ">Rechercher</label><input id="wsPQ" type="search" placeholder="Nom, matricule ou emploi" value="' + esc(st.sq) + '" autocomplete="off"></div>' +
-      '<div class="ws-field"><label for="wsFP">Période</label><select id="wsFP"><option value="">Toutes</option>' + periods.map((p) => '<option value="' + p + '"' + (p === st.fPeriod ? ' selected' : '') + '>' + esc(D.monthLabel(p)) + '</option>').join('') + '</select></div>' +
+      (locked ? '' : '<div class="ws-field"><label for="wsFP">Période</label><select id="wsFP"><option value="">Toutes</option>' + periods.map((p) => '<option value="' + p + '"' + (p === st.fPeriod ? ' selected' : '') + '>' + esc(D.monthLabel(p)) + '</option>').join('') + '</select></div>') +
       '<div class="ws-field"><label for="wsFS">Statut</label><select id="wsFS"><option value="">Tous</option>' + [...D.STATUSES, 'Erreur'].map((s) => '<option' + (s === st.fStatus ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div>' +
       '<div class="ws-field"><label for="wsSort">Trier par</label><select id="wsSort">' + Object.keys(SORTS).map((k) => '<option value="' + k + '"' + (k === st.sort ? ' selected' : '') + '>' + SORTS[k] + '</option>').join('') + '</select></div>' +
       (filtered ? '<button type="button" class="cp-btn sm" data-act="ws-reset-filters">Réinitialiser</button>' : '') + '</div>' +
@@ -123,10 +286,11 @@
   }
   function exportPayslips() {
     const c = company(); if (!c) return;
-    const rows = payslipRows(allRecords().filter((r) => r.companyId === c.id));
+    const mine = allRecords().filter((r) => r.companyId === c.id), lv = level('payslips', mine), locked = lv.lv === 'month';
+    const rows = payslipRows(locked ? mine.filter((r) => r.period === lv.m) : mine, locked);
     if (!rows.length) { toast('Aucun bulletin à exporter avec ces filtres'); return; }
     const num = (v) => Number(v) || 0;
-    csvDownload('bulletins-' + c.name + '.csv', [['Salarié', 'Matricule', 'Période', 'Statut', 'Masse salariale brute', 'Retenues', 'Net à payer', 'Charges fiscales IR + TRIMF', 'IPRES', 'CSS/CNSS employeur']].concat(rows.map((r) => {
+    csvDownload('bulletins-' + c.name + (locked ? '-' + lv.m : '') + '.csv', [['Salarié', 'Matricule', 'Période', 'Statut', 'Masse salariale brute', 'Retenues', 'Net à payer', 'Charges fiscales IR + TRIMF', 'IPRES', 'CSS/CNSS employeur']].concat(rows.map((r) => {
       const t = r.totals || {}, f = r.fields || {};
       return [r.name, f.mat || '', r.period, D.recStatus(r), D.recGross(r), dedOf(r), D.recNet(r), t.fiscalCharges !== undefined ? t.fiscalCharges : num(f.ir) + num(f.trimf), num(t.ipresEmployee) + num(t.ipresEmployer), num(t.cssEmployer)];
     })));
@@ -141,13 +305,13 @@
   }
 
   /* ───────── Rubrique : déclarations sociales ───────── */
-  function declarationsHTML(c, m) {
+  function declarationsFlat(c, m) {
     const n = m.employeeCount, mode = n >= 20 ? 'mensuel' : 'trimestriel';
     const body = '<article class="cp-card"><div class="cp-card-head"><div><h2>Échéances à venir</h2><p class="cp-sub">' + n + ' salarié' + (n > 1 ? 's' : '') + ' : IPRES et CSS en versement <b>' + mode + '</b> (CSS art. 93) · impôts : ' + ((S.taxRemittance === 'quarterly') ? 'trimestriel' : 'mensuel') + ' (CGI art. 185). Modifiable dans Paramètres de paie.</p></div></div>' +
       (m.deadlines.length ? m.deadlines.map((d) => '<div class="ws-deadline"><div><b>' + esc(d.label) + ' · ' + esc(d.desc) + '</b><span>' + (d.mode === 'quarterly' ? 'Trimestre ' : '') + esc(d.periodLabel) + ' · à régler avant le ' + esc(frDate(d.due)) + '</span></div><span class="cp-badge ' + (d.level === 'ok' ? 'success' : d.level === 'soon' ? 'warning' : 'danger') + '">' + (d.days < 0 ? 'Retard ' + Math.abs(d.days) + ' j' : d.days + ' j') + '</span><button type="button" class="cp-btn sm" data-act="done" data-key="' + esc(d.key) + '" data-period="' + esc(d.period) + '" data-mode="' + esc(d.mode) + '">Marquer fait</button></div>').join('') : '<div class="cp-empty"><b>Aucune échéance en attente</b><span>Les échéances apparaissent dès que des bulletins sont enregistrés et disparaissent une fois marquées comme faites.</span></div>') + '</article>';
     return '<div class="ws-page-head"><div><h1>Déclarations sociales et fiscales</h1><p>Échéances légales de ' + esc(c.name) + '</p></div><div class="ws-tools"><button type="button" class="cp-btn" data-act="module:charges">' + icon('coin') + 'Voir les charges et cotisations</button></div></div>' + body;
   }
-  function chargesHTML(c) {
+  function chargesFlat(c) {
     const tabs = '<div class="cp-chip-group" role="group" aria-label="Type de charges">' + [['social', 'Charges sociales'], ['taxes', 'Charges fiscales']].map(([k, l]) => chip(l, st.decl === k, 'data-decl="' + k + '"')).join('') + '</div>';
     const k = folderTotals(c), n = k.h.length, cov = k.metricsCoverage || {};
     const metric = (l, v) => '<div class="ws-metric"><span>' + esc(l) + '</span><b>' + esc(cur(folderMoney(v))) + '</b></div>';
@@ -159,11 +323,6 @@
   }
 
   /* ───────── Rubrique : documents ───────── */
-  function documentsHTML(c) {
-    const t = [['export-employees', 'users', 'Liste des salariés (CSV)', 'Nom, matricule, téléphone et emploi'], ['export-report', 'file', 'Liste des bulletins (CSV)', 'Net, masse brute, charges fiscales et sociales'], ['backup', 'download', 'Sauvegarde complète (JSON)', 'Toutes les entreprises, paramètres et bulletins'], ['import-backup', 'upload', 'Importer une sauvegarde', 'Restaure un fichier de sauvegarde JSON'], ['view:history', 'archive', 'Archives des bulletins', 'Consulter, recalculer ou supprimer des bulletins']];
-    return '<div class="ws-page-head"><div><h1>Documents</h1><p>Exports et archives du dossier ' + esc(c.name) + '</p></div></div><div class="ws-cards3">' + t.map(([a, i, l, d]) => '<button type="button" class="cp-card ws-doc" data-act="' + a + '"><span class="ico">' + icon(i) + '</span><div><b>' + esc(l) + '</b><span>' + esc(d) + '</span></div></button>').join('') + '</div>';
-  }
-
   /* ───────── Rubrique : paramètres du dossier ───────── */
   function settingsHTML(c, m) {
     const k = folderTotals(c);
@@ -185,7 +344,7 @@
     if (!c) { close({ returning: false }); if (window.CorintaShell) window.CorintaShell.go('companies'); else activateView('companies'); return; }
     try {
       const recs = allRecords().filter((r) => r.companyId === c.id), m = modelFor(c, recs), mod = st.module;
-      const html = mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m) : mod === 'charges' ? chargesHTML(c) : mod === 'documents' ? documentsHTML(c) : mod === 'settings' ? settingsHTML(c, m) : mod === 'params' ? paramsHTML(c, m) : dashboardHTML(m, c);
+      const html = mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m, recs) : mod === 'charges' ? chargesHTML(c, recs) : mod === 'documents' ? documentsHTML(c, recs) : mod === 'settings' ? settingsHTML(c, m) : mod === 'params' ? paramsHTML(c, m) : dashboardHTML(m, c);
       const box = $('wsContent'), scroll = box.scrollTop, focusId = document.activeElement && document.activeElement.id;
       box.innerHTML = html;
       if (mod === st.lastModule) box.scrollTop = scroll;
@@ -205,7 +364,7 @@
   function open(id, panel) {
     const c = ORG.items.find((x) => x.id === id); if (!c) return;
     const key = panel || 'dashboard', prevCompany = st.companyId;
-    st.companyId = id; st.module = MODULE_OF[key] || 'dashboard'; if (DECL_OF[key]) st.decl = DECL_OF[key];
+    st.companyId = id; st.module = MODULE_OF[key] || 'dashboard'; if (DECL_OF[key]) st.decl = DECL_OF[key]; resetNav(st.module);
     if (prevCompany !== id) { st.period = ''; st.q = ''; st.fPeriod = ''; st.fStatus = ''; st.sq = ''; st.sel.clear(); }
     st.open = true; st.returnTo = null; syncPill();
     ACTIVE_FOLDER_PAGE = false;
@@ -234,7 +393,7 @@
     box.innerHTML = rows.slice(0, 12).join('') || '<div class="cp-empty" style="margin:6px"><b>Aucun résultat</b><span>Dans ' + esc(c.name) + '</span></div>';
     box.classList.remove('hidden');
   }
-  function go(mod) { st.module = MODULE_OF[mod] || mod; if (DECL_OF[mod]) st.decl = DECL_OF[mod]; render(); $('wsContent').scrollTop = 0; }
+  function go(mod) { st.module = MODULE_OF[mod] || mod; if (DECL_OF[mod]) st.decl = DECL_OF[mod]; resetNav(st.module); render(); $('wsContent').scrollTop = 0; }
   function handleAct(a, el) {
     if (a === 'ws-exit') { if (window.CorintaShell) window.CorintaShell.go('companies'); return; }
     if (a === 'ws-general') { if (window.CorintaShell) window.CorintaShell.go('dashboard'); return; }
@@ -257,11 +416,17 @@
       $('deleteCompanyMessage').textContent = 'Le dossier « ' + c.name + ' », ses ' + (c.employees ? c.employees.length : 0) + ' salarié(s) et tous ses bulletins de paie seront supprimés définitivement.';
       $('deleteCompanyDialog').showModal(); return;
     }
+    if (a === 'new-payslip' && st.module === 'payslips' && st.nav.payslips.m) {
+      const p = st.nav.payslips.m; UI.act(a, el); const e = $('period');
+      if (e) { e.value = p; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }
+      return;
+    }
     UI.act(a, el);
   }
   function bind() {
     const root = $('ws');
     root.addEventListener('click', (e) => {
+      const nv = e.target.closest('[data-nav]'); if (nv) { navTo(nv.dataset.nav); return; }
       const mbtn = e.target.closest('[data-m]'); if (mbtn) { $('wsMenu').classList.add('hidden'); go(mbtn.dataset.m); return; }
       const me = e.target.closest('[data-metric]'); if (me) { st.metric = me.dataset.metric; render(); return; }
       const ra = e.target.closest('[data-range]'); if (ra) { st.range = ra.dataset.range; if (st.range === 'custom' && !st.from) { const p = PERIOD_RE.test(st.period) ? st.period : latest(allRecords().filter((r) => r.companyId === st.companyId)); st.to = p; st.from = D.addMonths(p, -5); } render(); return; }
