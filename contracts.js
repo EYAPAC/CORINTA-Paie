@@ -93,6 +93,8 @@
     const cand = imp.candidates[imp.pick] || imp.candidates[0], n = cand.items.length;
     const field = (it) => {
       const id = 'ctImp_' + it.path.replace(/\./g, '_'), v = it.value;
+      const ENUM = { 'job.type': Object.entries(K.TYPE_LABEL), 'worker.sexe': [['M', 'Masculin'], ['F', 'Féminin']], 'worker.famille': Object.entries(K.FAMILLE), 'worker.civilite': [['Monsieur', 'Monsieur'], ['Madame', 'Madame'], ['Mademoiselle', 'Mademoiselle']] };
+      if (ENUM[it.path]) return '<select id="' + id + '" data-imp-val="' + esc(it.path) + '" aria-label="' + esc(it.label) + '">' + ENUM[it.path].map(([k, l]) => '<option value="' + esc(k) + '"' + (String(v) === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>';
       if (typeof v === 'boolean') return '<input id="' + id + '" type="checkbox" data-imp-val="' + esc(it.path) + '"' + (v ? ' checked' : '') + ' aria-label="' + esc(it.label) + '">';
       if (typeof v === 'number') return '<input id="' + id + '" type="number" data-imp-val="' + esc(it.path) + '" value="' + v + '" aria-label="' + esc(it.label) + '">';
       if (isDate(it.path)) return '<input id="' + id + '" type="date" data-imp-val="' + esc(it.path) + '" value="' + esc(v) + '" aria-label="' + esc(it.label) + '">';
@@ -110,6 +112,7 @@
     const newNom = String(cand.fields['worker.nom'] || '').toUpperCase(), curNom = String(d.worker.nom || '').toUpperCase();
     if (curNom && newNom && curNom !== newNom && !confirm('Le contrat en cours concerne ' + d.worker.nom + '. Remplacer ses informations par celles de ' + cand.fields['worker.nom'] + ' ?')) return;
     const applied = IM.apply(d, cand.fields, only);
+    if (applied.includes('job.type')) { const keep = d.job.type; d.job.type = 'CDI'; K.switchType(d, keep); }
     if (d.worker.famille === 'marie' && !d.worker.epouses) d.worker.epouses = 1;
     view.imported = new Set(applied); view.afterImport = true; view.imp = null; view.net = null;
     commit(); setMsg(applied.length + ' informations importées : complétez les champs signalés.'); toast(applied.length + ' informations importées dans le contrat'); render(); setTimeout(updateDerived, 30);
@@ -161,34 +164,40 @@
   const val = (v, w) => '<span class="u">' + (esc(str(v)) || '&nbsp;'.repeat(w || 8)) + '</span>';
 
   function contractDoc(d) {
-    const w = d.worker, j = d.job, e = d.employer, s = K.salaryTotals(d.salary), cdd = j.type === 'CDD';
+    const w = d.worker, j = d.job, e = d.employer, s = K.salaryTotals(d.salary), cdd = K.isCdd(j.type), projet = j.type === 'CDD_PROJET';
     const fem = w.sexe === 'F', fa = fem ? 'Madame' : (w.civilite || 'Monsieur');
+    const n = (r) => (cdd ? '' : r + '. ');   // le modèle CDI numérote les rubriques, le modèle CDD non
     const fam = (K.FAMILLE[w.famille] || '') + (K.num(w.enfants) > 0 ? ', ' + String(Math.round(K.num(w.enfants))).padStart(2, '0') + ' enfant' + (K.num(w.enfants) > 1 ? 's' : '') : '');
     const essai = K.num(j.essaiMois) > 0
       ? 'Le présent contrat est conclu avec une période d’essai de ' + inWords(j.essaiMois) + ' mois' + (j.essaiRenouvelable ? ', renouvelable tacitement' : '') + ', au cours de laquelle chacune des parties pourra y mettre fin conformément aux dispositions légales et réglementaires en vigueur.'
-      : 'Le présent contrat est conclu sans période d’essai.';
+      : (cdd ? '' : 'Le présent contrat est conclu sans période d’essai.');
     const horaire = K.num(j.horaire) > 0 ? 'L’horaire de travail est en principe de ' + K.num(j.horaire) + ' heures par semaine' + (K.num(j.horaire) === 40 ? ', soit 173,33 heures le mois' : '') + '.' : '';
-    const refs = (d.clauses.references || []).filter((r) => str(r)).map((r, i) => '<li>' + esc(r) + '</li>').join('');
+    const refs = (d.clauses.references || []).filter((r) => str(r)).map((r) => '<li>' + esc(r) + '</li>').join('');
     const salRows = [['Salaire de base', s.base], ['Sursalaire', s.sursalaire]].concat(s.logement > 0 ? [['Indemnité de logement', s.logement]] : [], s.anciennete > 0 ? [['Prime d’ancienneté (' + K.num(d.salary.anciennetePct) + ' %)', s.anciennete]] : [], [['Indemnité de transport', s.transport]]);
-    return '<div class="ctdoc"><h1>CONTRAT DE TRAVAIL</h1><h2>' + (cdd ? 'A DUREE DETERMINEE' : 'A DUREE INDETERMINEE') + '</h2>' +
-      '<p><b>Entre les Soussignés :</b></p><p>' + esc(e.name) + (e.siege ? ' dont le siège social est situé à ' + esc(e.siege) : '') + (e.representant ? ', représenté par ' + esc(e.representant) + (e.qualite ? ', en sa qualité de ' + esc(e.qualite) : '') : '') + '</p><p><b>Désigné(e) ci-après « L’employeur »</b></p>' +
+    const repNom = str(e.representant).replace(/^(monsieur|madame|mademoiselle|m\.|mme)\s+/i, '');
+    const dureeContrat = projet ? 'Durée déterminée, pour la durée du projet « ' + str(j.projetNom) + ' »' : (cdd ? 'Durée déterminée' : 'Durée Indéterminée');
+    const lieuFonction = esc(fa) + ' ' + esc(K.fullName(w)) + ' est amené(e) à assumer la fonction ' + esc(str(j.fonctionDetail) || j.emploi) + (j.lieu ? ' à l’adresse suivante : ' + esc(j.lieu) : '') + '.';
+    const copie = j.copieInspection ? ' et (copie adressée à l’Inspection régionale du travail et de la sécurité sociale de ' + esc(j.lieuSignature) + ')' : '';
+    return '<div class="ctdoc"><h1>CONTRAT DE TRAVAIL</h1><h2>' + (cdd ? 'A DUREE DETERMINEE' : 'A DUREE INDETERMINEE') + '</h2>' + (projet ? '<p class="center"><i>(pour la durée du projet « ' + esc(j.projetNom) + ' »)</i></p>' : '') +
+      '<p><b>Entre les Soussignés :</b></p><p>' + esc([e.prefixe, e.name].filter(Boolean).join(' ')) + (e.siege ? ' dont le siège social est situé à ' + esc(e.siege) : '') + (e.representant ? ', représenté par ' + esc(e.representant) + (e.qualite ? ', en sa qualité de ' + esc(e.qualite) : '') : '') + '</p><p><b>Désigné(e) ci-après « L’employeur »</b></p>' +
       '<p><b>Et,</b></p><p>' + esc(fa) + ',</p>' +
       '<div class="row">Nom : ' + val(str(w.nom).toUpperCase(), 14) + '</div><div class="row">Prénoms : ' + val(w.prenoms, 14) + '</div>' +
       '<div class="row">Date et Lieu de Naissance : ' + val((frDate(w.naissance) || '') + (w.lieuNaissance ? ' à ' + w.lieuNaissance : ''), 14) + '</div><div class="row">Nationalité : ' + val(w.nationalite, 10) + '</div>' +
-      '<div class="row">Filiation : ' + val((fem ? 'Fille de ' : 'Fils de ') + (w.pere || '…') + ' et ' + (w.mere || '…'), 14) + '</div><div class="row">Situation de Famille : ' + val(fam, 10) + '</div><div class="row">Domicilié(e) : ' + val(w.domicile, 14) + '</div>' +
+      '<div class="row">Filiation : ' + val((cdd ? '' : (fem ? 'Fille de ' : 'Fils de ')) + (w.pere || '…') + ' et ' + (w.mere || '…'), 14) + '</div><div class="row">Situation de Famille : ' + val(fam, 10) + '</div><div class="row">Domicilié(e) : ' + val(w.domicile, 14) + '</div>' +
       '<p style="margin-top:8px"><b>Désigné(e) ci-après « LE TRAVAILLEUR »</b></p>' +
       '<p>Il a été conclu le Contrat de Travail aux clauses ci-dessous, conformément aux dispositions du décret N° 63-00-118 /MFPT/DTSS du 19 Février 1963 fixant les formes et modalités d’établissement du contrat du travail et de l’engagement à l’essai.</p>' +
-      '<div class="row"><b>I. EMPLOI TENU :</b> ' + val(j.emploi, 14) + '</div><div class="row"><b>II. CLASSIFICATION PROFESSIONNELLE :</b> ' + val(j.classification, 12) + '</div><div class="row"><b>III. DATE DE L’ENGAGEMENT :</b> ' + val(frDate(j.dateEngagement), 10) + '</div>' +
-      '<div class="row"><b>IV. DUREE DU CONTRAT :</b> ' + val(cdd ? 'Durée déterminée, du ' + frDate(j.dateEngagement) + ' au ' + frDate(j.dateFin) : 'Durée Indéterminée', 12) + '</div>' +
-      '<div class="art">V. REFERENCES AUX TEXTES REGISSANT LE CONTRAT :</div><ol>' + refs + '</ol>' +
-      '<div class="art">VI. CONDITIONS PARTICULIERES</div><p>' + esc(essai) + ' ' + esc(horaire) + '</p>' +
-      '<p><b>Lieu et durée de travail :</b> ' + esc(fa) + ' ' + esc(K.fullName(w)) + ' est amené(e) à assumer la fonction ' + esc(j.emploi) + (j.lieu ? ' à l’adresse suivante : ' + esc(j.lieu) : '') + '.</p>' +
+      '<div class="row"><b>' + n('I') + 'EMPLOI TENU :</b> ' + val(j.emploi, 14) + '</div><div class="row"><b>' + n('II') + 'CLASSIFICATION PROFESSIONNELLE :</b> ' + val(j.classification, 12) + '</div><div class="row"><b>' + n('III') + 'DATE DE L’ENGAGEMENT :</b> ' + val(frDate(j.dateEngagement), 10) + '</div>' +
+      '<div class="row"><b>' + n('IV') + 'DUREE DU CONTRAT :</b> ' + val(dureeContrat, 12) + '</div>' +
+      '<div class="art">' + n('V') + 'REFERENCES AUX TEXTES REGISSANT LE CONTRAT :</div><ol>' + refs + '</ol>' +
+      '<div class="art">' + n('VI') + 'CONDITIONS PARTICULIERES</div>' + (essai || horaire ? '<p>' + esc(cdd ? horaire : essai + ' ' + horaire) + (cdd && essai ? ' ' + esc(essai) : '') + '</p>' : '') +
+      '<p><b>Lieu et durée de travail :</b> ' + lieuFonction + '</p>' +
       (str(d.clauses.mobilite) ? '<p>' + esc(d.clauses.mobilite) + '</p>' : '') +
+      (cdd ? '<p>' + esc(K.dureeText(d)) + '</p>' : '') +
       '<p><b>Régime des congés payés :</b> ' + esc(d.clauses.conges) + '</p><p><b>Prévoyance sociale :</b> ' + esc(d.clauses.prevoyance) + '</p><p><b>Discipline - Secret professionnel :</b> ' + esc(d.clauses.discipline) + '</p>' +
-      '<div class="art">VII. SALAIRE</div><p>Le salaire brut mensuel est ainsi décomposé :</p><table class="sal">' + salRows.map(([l, v]) => '<tr><td>' + esc(l) + '</td><td style="text-align:right"><b>' + money(v) + '</b> FCFA</td></tr>').join('') + '<tr><td><b>Total brut mensuel</b></td><td style="text-align:right"><b>' + money(s.brutContrat) + '</b> FCFA</td></tr></table>' +
-      '<div class="art">VIII.</div><p>' + esc(fa) + ' ' + esc(K.fullName(w)) + ' déclare formellement n’être lié(e) à aucun employeur et être libre de tout engagement.</p>' +
-      '<p class="center">Le présent contrat est établi à ' + esc(j.lieuSignature) + ' en ' + esc(inWords(j.exemplaires)) + ' exemplaires originaux.</p><p class="center">' + esc(j.lieuSignature) + ', le ' + esc(longDate(j.dateContrat || j.dateEngagement)) + '</p>' +
-      '<div class="sign"><div><b>' + esc(e.signataire || 'L’employeur') + '</b></div><div><b>Le travailleur</b><br><small>(Signature précédée de la mention « Lu et Approuvé »)</small></div></div></div>';
+      '<div class="art">' + n('VII') + 'SALAIRE</div><p>Le salaire brut mensuel est ainsi décomposé :</p><table class="sal">' + salRows.map(([l, v]) => '<tr><td>' + esc(l) + '</td><td style="text-align:right"><b>' + money(v) + '</b> FCFA</td></tr>').join('') + '<tr><td><b>' + (cdd ? 'Soit un total de francs CFA (hors indemnité de transport)' : 'Total brut mensuel (transport compris)') + '</b></td><td style="text-align:right"><b>' + money(cdd ? s.brutDmt : s.brutContrat) + '</b> FCFA</td></tr></table>' +
+      '<div class="art">' + n('VIII') + (cdd ? '' : '') + '</div><p>' + esc(fa) + ' ' + esc(K.fullName(w)) + ' déclare formellement n’être lié(e) à aucun employeur et être libre de tout engagement.</p>' +
+      '<p class="center">Le présent contrat est établi à ' + esc(j.lieuSignature) + ' en ' + esc(inWords(j.exemplaires)) + ' exemplaires originaux' + copie + '.</p><p class="center">' + esc(j.lieuSignature) + ', le ' + esc(longDate(j.dateContrat || j.dateEngagement)) + '</p>' +
+      '<div class="sign"><div><b>' + esc(e.signataire || 'L’employeur') + '</b>' + (cdd && repNom ? '<br><br><br>' + esc(repNom) : '') + '</div><div><b>Le travailleur</b>' + (cdd ? '<br><br><br>' + esc(K.fullName(w)) : '') + '<br><small>(Signature précédée de la mention « Lu et Approuvé »)</small></div></div></div>';
   }
 
   function dmtDoc(d, co) {
@@ -285,20 +294,21 @@
     const W = (p, l, o) => fld('worker.' + p, l, o), J = (p, l, o) => fld('job.' + p, l, o), E = (p, l, o) => fld('employer.' + p, l, o), S = (p, l, o) => fld('salary.' + p, l, o);
     const married = d.worker.famille === 'marie';
     return card('Employeur', 'Repris du profil de l’entreprise ; enregistré pour les prochains contrats.',
-      E('name', 'Raison sociale de l’employeur') + E('siege', 'Siège social', { placeholder: 'Dakar, Immeuble…' }) + E('representant', 'Représenté par', { placeholder: 'Madame … / Monsieur …' }) + E('qualite', 'En sa qualité de') + E('signataire', 'Signataire du contrat', { title: 'Texte affiché au-dessus de la signature' }) + E('activite', 'Activité de l’établissement (DMT)')) +
+      E('prefixe', 'Présentation (ex. L’entreprise, Le Cabinet)', { placeholder: 'L’entreprise' }) + E('name', 'Raison sociale de l’employeur') + E('siege', 'Siège social', { placeholder: 'Dakar, Immeuble…' }) + E('representant', 'Représenté par', { placeholder: 'Madame … / Monsieur …' }) + E('qualite', 'En sa qualité de') + E('signataire', 'Signataire du contrat', { title: 'Texte affiché au-dessus de la signature' }) + E('activite', 'Activité de l’établissement (DMT)')) +
       card('Travailleur', 'Ces informations sont reprises automatiquement dans la DMT.',
         W('civilite', 'Civilité', { type: 'select', options: [['Monsieur', 'Monsieur'], ['Madame', 'Madame'], ['Mademoiselle', 'Mademoiselle']] }) + W('sexe', 'Sexe', { type: 'select', options: [['M', 'Masculin'], ['F', 'Féminin']], redraw: true }) + W('nom', 'Nom') + W('prenoms', 'Prénoms') +
         W('naissance', 'Date de naissance', { type: 'date' }) + W('lieuNaissance', 'Lieu de naissance') + W('pays', 'Pays de naissance') + W('nationalite', 'Nationalité') + W('pere', 'Père (fils/fille de)') + W('mere', 'Mère') + W('domicile', 'Domicile / adresse précise', { wide: true }) +
         W('famille', 'Situation de famille', { type: 'select', redraw: true, options: Object.entries(K.FAMILLE) }) + W('enfants', 'Enfants à charge', { type: 'number' }) +
         (married ? W('conjointRevenus', 'Le conjoint a un revenu professionnel (IR et TRIMF du bulletin)', { type: 'checkbox' }) : '')) +
-      card('Emploi et durée', 'Modèle : contrat de travail à durée indéterminée (CDI) ou déterminée (CDD).',
+      card('Emploi et durée', d.job.type === 'CDD_PROJET' ? 'Modèle CDD du cabinet, adapté à un contrat conclu pour la durée d’un projet : le contrat prend fin à l’achèvement du projet.' : (K.isCdd(d.job.type) ? 'Modèle : contrat de travail à durée déterminée (CDD).' : 'Modèle : contrat de travail à durée indéterminée (CDI).'),
         J('emploi', 'I. Emploi tenu') + J('classification', 'II. Classification professionnelle', { placeholder: '7ème B de la convention du commerce' }) + J('convention', 'Convention collective') + J('dateEngagement', 'III. Date de l’engagement', { type: 'date' }) +
-        J('type', 'IV. Durée du contrat', { type: 'select', redraw: true, options: [['CDI', 'Durée indéterminée (CDI)'], ['CDD', 'Durée déterminée (CDD)']] }) + (d.job.type === 'CDD' ? J('dateFin', 'Date de fin du CDD', { type: 'date' }) : '') +
-        J('essaiMois', 'Période d’essai (mois, 0 = aucune)', { type: 'number' }) + J('essaiRenouvelable', 'Renouvelable tacitement', { type: 'checkbox' }) + J('horaire', 'Horaire hebdomadaire (heures)', { type: 'number' }) + J('lieu', 'Lieu de travail (adresse)') + J('lieuSignature', 'Contrat établi à') + J('dateContrat', 'Date du contrat', { type: 'date', title: 'Par défaut : date de l’engagement' }) + J('exemplaires', 'Nombre d’exemplaires', { type: 'number' })) +
+        J('type', 'IV. Type de contrat', { type: 'select', redraw: true, options: Object.entries(K.TYPE_LABEL) }) + (d.job.type === 'CDD_PROJET' ? J('projetNom', 'Nom du projet', { placeholder: 'Intitulé du projet' }) + J('projetObjet', 'Objet du projet (mission, résultats attendus)', { wide: true }) : '') +
+        (K.isCdd(d.job.type) ? J('dateFin', d.job.type === 'CDD_PROJET' ? 'Fin prévisionnelle du projet' : 'Date de fin du CDD', { type: 'date' }) + J('fonctionDetail', 'Fonction exercée (détail, zone d’affectation)', { wide: true, placeholder: 'Coordonnateur régional de l’antenne … dans la Région de …' }) : '') +
+        J('essaiMois', 'Période d’essai (mois, 0 = aucune)', { type: 'number' }) + J('essaiRenouvelable', 'Renouvelable tacitement', { type: 'checkbox' }) + J('horaire', 'Horaire hebdomadaire (heures)', { type: 'number' }) + J('lieu', 'Lieu de travail (adresse)') + J('lieuSignature', 'Contrat établi à') + J('dateContrat', 'Date du contrat', { type: 'date', title: 'Par défaut : date de l’engagement' }) + J('exemplaires', 'Nombre d’exemplaires', { type: 'number' }) + (K.isCdd(d.job.type) ? J('copieInspection', 'Copie adressée à l’Inspection régionale du travail', { type: 'checkbox' }) : '')) +
       card('VII. Salaire', 'Montants mensuels bruts en FCFA.',
         S('base', 'Salaire de base') + S('sursalaire', 'Sursalaire') + S('logement', 'Indemnité de logement') + S('anciennetePct', 'Ancienneté (%)', { type: 'number' }) + S('transport', 'Indemnité de transport') + '<div class="wide" id="ctDerived">' + derivedHTML(d) + '</div>') +
       '<details class="cp-card ws-form"><summary><b>Clauses du contrat</b> (reprises du modèle, modifiables)</summary><div class="ws-grid-fields">' +
-      fld('clauses.references', 'V. Références aux textes (une par ligne)', { type: 'textarea', rows: 6 }) + fld('clauses.conges', 'Régime des congés payés', { type: 'textarea' }) + fld('clauses.prevoyance', 'Prévoyance sociale', { type: 'textarea' }) + fld('clauses.discipline', 'Discipline – secret professionnel', { type: 'textarea', rows: 5 }) + fld('clauses.mobilite', 'Lieu de travail – mobilité', { type: 'textarea' }) +
+      fld('clauses.references', 'V. Références aux textes (une par ligne)', { type: 'textarea', rows: 6 }) + fld('clauses.conges', 'Régime des congés payés', { type: 'textarea' }) + fld('clauses.prevoyance', 'Prévoyance sociale', { type: 'textarea' }) + fld('clauses.discipline', 'Discipline – secret professionnel', { type: 'textarea', rows: 5 }) + fld('clauses.mobilite', 'Lieu de travail – mobilité', { type: 'textarea' }) + (K.isCdd(d.job.type) ? fld('clauses.duree', 'Clause de durée (variables : {duree} {debut} {fin} {projet} {objet} {finPrevue})', { type: 'textarea', rows: 4 }) : '') +
       '</div><p class="cp-sub">Les références juridiques sont celles de votre modèle (Code du travail de 1997) : vérifiez-les si le nouveau Code du travail (loi n° 15/2026) s’applique à ce contrat.</p></details>';
   }
 
@@ -353,15 +363,15 @@
     const kpi = (l, v) => '<div class="ws-sum"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>';
     const act = (a, ic, label, id) => '<button type="button" class="cp-act' + (a === 'del' ? ' danger' : '') + '" title="' + esc(label) + '" aria-label="' + esc(label) + '" data-ct="' + a + ':' + esc(id) + '">' + icon(ic) + '</button>';
     const body = rows.map((x) => {
-      const dm = DMT_LABEL(x), te = K.trialEnd(x), end = x.job.type === 'CDD' ? frDate(x.job.dateFin) : (te ? 'Essai jusqu’au ' + frDate(te) : '—');
-      return '<tr><td class="nw">' + esc(x.number || '—') + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(x.job.type) + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
+      const dm = DMT_LABEL(x), te = K.trialEnd(x), end = K.isCdd(x.job.type) ? (x.job.type === 'CDD_PROJET' ? 'Fin du projet' + (x.job.projetNom ? ' « ' + x.job.projetNom + ' »' : '') + (x.job.dateFin ? ' : ' + frDate(x.job.dateFin) : '') : frDate(x.job.dateFin)) : (te ? 'Essai jusqu’au ' + frDate(te) : '—');
+      return '<tr><td class="nw">' + esc(x.number || '—') + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(K.TYPE_SHORT[x.job.type] || x.job.type) + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
         '<td><select class="ct-mini" aria-label="Statut du contrat de ' + esc(K.fullName(x.worker)) + '" data-ct-status="' + esc(x.id) + '">' + K.STATUS.map((s) => '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></td><td><span class="cp-badge ' + dm[1] + '">' + dm[0] + '</span></td>' +
         '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
     }).join('');
     return '<div class="ws-page-head"><div><h1>Gestion des contrats</h1><p>' + esc(c.name) + ' · ' + all.length + ' contrat' + (all.length > 1 ? 's' : '') + '</p></div><div class="ws-tools"><button type="button" class="cp-btn primary" data-ct="new">' + icon('plus') + 'Nouveau contrat</button></div></div>' +
       '<div class="ws-sums">' + kpi('Contrats', String(all.length)) + kpi('En cours', String(all.filter((x) => x.status === 'en cours').length)) + kpi('Brouillons', String(all.filter((x) => x.status === 'brouillon').length)) + kpi('DMT à établir', String(all.filter((x) => x.status !== 'terminé' && !(x.dmt && x.dmt.status === 'établie')).length)) + '</div>' +
       (alerts.length ? '<article class="cp-card"><div class="cp-card-head"><h2>Alertes</h2></div><ul class="cp-alerts">' + alerts.map((a) => '<li class="cp-alert ' + (a.level === 'info' ? 'info' : a.level === 'late' ? 'danger' : 'warn') + '"><span class="ico">' + icon(a.level === 'info' ? 'clock' : 'alert') + '</span><button type="button" class="main-act" data-ct="edit:' + esc(a.id) + '">' + esc(a.text) + '</button><span></span></li>').join('') + '</ul></article>' : '') +
-      '<div class="ws-tools ws-filters"><div class="ws-field"><label for="ctQ">Rechercher</label><input id="ctQ" type="search" placeholder="Nom, emploi ou n°" value="' + esc(view.q) + '" autocomplete="off"></div><div class="ws-field"><label for="ctFS">Statut</label><select id="ctFS"><option value="">Tous</option>' + K.STATUS.map((s) => '<option' + (view.fStatus === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div><div class="ws-field"><label for="ctFT">Type</label><select id="ctFT"><option value="">Tous</option><option' + (view.fType === 'CDI' ? ' selected' : '') + '>CDI</option><option' + (view.fType === 'CDD' ? ' selected' : '') + '>CDD</option></select></div></div>' +
+      '<div class="ws-tools ws-filters"><div class="ws-field"><label for="ctQ">Rechercher</label><input id="ctQ" type="search" placeholder="Nom, emploi ou n°" value="' + esc(view.q) + '" autocomplete="off"></div><div class="ws-field"><label for="ctFS">Statut</label><select id="ctFS"><option value="">Tous</option>' + K.STATUS.map((s) => '<option' + (view.fStatus === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div><div class="ws-field"><label for="ctFT">Type</label><select id="ctFT"><option value="">Tous</option>' + Object.entries(K.TYPE_SHORT).map(([k, l]) => '<option value="' + k + '"' + (view.fType === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div></div>' +
       '<article class="cp-card">' + (rows.length ? '<div class="cp-table-wrap"><table class="cp-table" style="min-width:900px"><thead><tr><th>N°</th><th>Travailleur</th><th>Type</th><th>Engagement</th><th>Échéance</th><th>Statut</th><th>DMT</th><th>Actions</th></tr></thead><tbody>' + body + '</tbody></table></div>'
         : '<div class="cp-empty"><b>' + (all.length ? 'Aucun contrat pour ce filtre' : 'Aucun contrat enregistré') + '</b><span>' + (all.length ? 'Modifiez la recherche ou les filtres.' : 'Utilisez « Nouveau contrat » : la DMT se prépare ensuite automatiquement à partir du contrat.') + '</span></div>') + '</article>';
   }
@@ -415,7 +425,8 @@
     if (t.type === 'number') v = v === '' ? 0 : Number(v);
     if (p === 'clauses.references') v = String(v).split(/\n+/).map((s) => s.trim()).filter(Boolean);
     if (p.indexOf('dmt.') === 0 && !view.draft.dmt) view.draft.dmt = {};
-    setPath(view.draft, p, v); view.dirty = true; queueCommit();
+    if (p === 'job.type') K.switchType(view.draft, v); else setPath(view.draft, p, v);
+    view.dirty = true; queueCommit();
   }
   function input(e) {
     const t = e.target, mod = WS.state.module;

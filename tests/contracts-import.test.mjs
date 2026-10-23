@@ -28,7 +28,7 @@ test('Word : le contrat type est lu paragraphe par paragraphe', () => {
   assert.equal(f['job.emploi'], 'COMPTABLE'); assert.equal(f['job.classification'], '7ème B de la convention du commerce'); assert.equal(f['job.dateEngagement'], '2026-04-01'); assert.equal(f['job.type'], 'CDI');
   assert.equal(f['job.essaiMois'], 3); assert.equal(f['job.essaiRenouvelable'], true); assert.equal(f['job.horaire'], 40);
   assert.equal(f['salary.base'], 113984); assert.equal(f['salary.sursalaire'], 203389); assert.equal(f['salary.transport'], 26000);
-  assert.equal(f['employer.name'], 'Cabinet Test'); assert.equal(f['employer.siege'], 'Dakar, Immeuble Atlantis, Almadies'); assert.equal(f['employer.representant'], 'Madame Awa DIOP'); assert.equal(f['employer.qualite'], 'gérante');
+  assert.equal(f['employer.prefixe'], 'Le'); assert.equal(f['employer.name'], 'Cabinet Test'); assert.equal(f['employer.siege'], 'Dakar, Immeuble Atlantis, Almadies'); assert.equal(f['employer.representant'], 'Madame Awa DIOP'); assert.equal(f['employer.qualite'], 'gérante');
   assert.equal(f['job.exemplaires'], 4); assert.equal(f['job.lieuSignature'], 'Dakar'); assert.equal(f['job.dateContrat'], '2026-04-01');
 });
 
@@ -71,4 +71,26 @@ test('application au contrat : seules les valeurs retenues sont écrites, le con
 test('un fichier sans information utile ne produit aucun candidat', () => {
   assert.deepEqual(I.extract(I.rowsToBlocks([['Facture', '123'], ['Total', '5000']])), []);
   assert.deepEqual(I.extract([]), []);
+});
+
+test('CDD du modèle : durée en années, fonction détaillée, présentation de l’employeur', () => {
+  const lines = ['CONTRAT DE TRAVAIL', 'A DUREE DETERMINEE',
+    'L’entreprise TEST SARL dont le siège social est situé à Dakar, VDN lot 58, représenté par Monsieur Chef TEST, en sa qualité de gérant',
+    'Nom : ____ DEMO ____', 'Prénoms : ____ PRENOM TEST ____', 'Filiation : _ Pere Test DEMO et Mere Test ________', 'Situation de Famille : ____Marié ___ 08 enfants ____',
+    'EMPLOI TENU : ___ COORDONNATEUR ___', 'DATE DE L’ENGAGEMENT : ____ 01 /09/2023 ____', 'DUREE DU CONTRAT : ____ Durée Déterminée ____',
+    'Lieu et Durée de travail : Monsieur ___ Prenom Test DEMO ___ est amenée à assumer la fonction Coordonnateur régional de l’antenne XYZ dans la Région de Ville.',
+    'Le présent contrat est prévu pour une durée de deux (02) ans, du 01 Septembre 2023 au 01 Septembre 2025.',
+    'Le présent contrat est établi à Dakar en quatre (04) exemplaires originaux et (copie adressée à l’Inspection Régional du Travail).'];
+  const [c] = I.extract(lines.map((text) => ({ type: 'p', text }))), f = c.fields;
+  assert.equal(f['employer.prefixe'], 'L’entreprise'); assert.equal(f['employer.name'], 'TEST SARL'); assert.equal(f['employer.qualite'], 'gérant');
+  assert.equal(f['worker.pere'], 'Pere Test DEMO'); assert.equal(f['worker.mere'], 'Mere Test'); assert.equal(f['worker.enfants'], 8);
+  assert.equal(f['job.type'], 'CDD'); assert.equal(f['job.dateEngagement'], '2023-09-01'); assert.equal(f['job.dateFin'], '2025-09-01');
+  assert.equal(f['job.emploi'], 'COORDONNATEUR'); assert.equal(f['job.fonctionDetail'], 'Coordonnateur régional de l’antenne XYZ dans la Région de Ville');
+});
+
+test('CDD pour la durée d’un projet : détecté par le libellé ou par la phrase type', () => {
+  const [a] = I.extract(I.rowsToBlocks([['Nom', 'DEMO'], ['Prénoms', 'Test'], ['Emploi', 'Chargé de projet'], ['Type de contrat', 'CDD pour la durée du projet'], ['Nom du projet', 'Alpha'], ['Date de fin prévisionnelle du projet', '30/06/2027'], ['Date d’engagement', '01/07/2026']]));
+  assert.equal(a.fields['job.type'], 'CDD_PROJET'); assert.equal(a.fields['job.projetNom'], 'Alpha'); assert.equal(a.fields['job.dateFin'], '2027-06-30');
+  const [b] = I.extract([{ type: 'p', text: 'Nom : DEMO' }, { type: 'p', text: 'Durée du contrat : Durée Déterminée' }, { type: 'p', text: 'Le présent contrat est conclu pour la durée du projet « Beta », jusqu’à son achèvement.' }]);
+  assert.equal(b.fields['job.type'], 'CDD_PROJET'); assert.equal(b.fields['job.projetNom'], 'Beta');
 });

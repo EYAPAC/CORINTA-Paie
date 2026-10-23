@@ -43,7 +43,7 @@
   /* ───────── Normalisation ───────── */
   const FROM = 'àáâãäåçèéêëìíîïñòóôõöùúûüýÿœÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ’‘´`', TO = 'aaaaaaceeeeiiiinooooouuuuyyoAAAAAACEEEEIIIINOOOOOUUUUY\'\'\'\'';
   const fold = (s) => { let o = ''; for (const ch of String(s)) { const i = FROM.indexOf(ch); o += i >= 0 ? TO[i] : ch; } return o.toLowerCase(); };
-  const clean = (s) => String(s == null ? '' : s).replace(/_{2,}/g, ' ').replace(/\.{3,}/g, ' ').replace(/[ \s]+/g, ' ').replace(/^[\s:;,\-–—]+|[\s:;,\-–—]+$/g, '').trim();
+  const clean = (s) => String(s == null ? '' : s).replace(/(^|\s)_+(?=\s|$)/g, ' ').replace(/^_+|_+$/g, ' ').replace(/_{2,}/g, ' ').replace(/\.{3,}/g, ' ').replace(/[ \s]+/g, ' ').replace(/^[\s:;,\-–—]+|[\s:;,\-–—]+$/g, '').trim();
   const NUM_WORDS = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12 };
   const MONTHS = { janvier: 1, fevrier: 2, mars: 3, avril: 4, mai: 5, juin: 6, juillet: 7, aout: 8, septembre: 9, octobre: 10, novembre: 11, decembre: 12 };
   const pad = (n) => String(n).padStart(2, '0');
@@ -79,10 +79,12 @@
     ['job.convention', ['convention collective', 'convention']],
     ['job.dateEngagement', ['date de l\'engagement', 'date d\'engagement', 'date d\'embauche', 'date d\'entree dans l\'etablissement', 'date d\'entree', 'date de debut', 'debut du contrat', 'date de prise de fonction', 'date de recrutement']],
     ['job.duree', ['duree du contrat', 'type de contrat', 'nature du contrat', 'duree']],
-    ['job.dateFin', ['date de fin de contrat', 'date de fin', 'fin du contrat', 'echeance du contrat', 'terme du contrat']],
+    ['job.dateFin', ['date de fin previsionnelle du projet', 'fin previsionnelle du projet', 'date de fin du projet', 'fin du projet', 'date de fin de contrat', 'date de fin', 'fin du contrat', 'echeance du contrat', 'terme du contrat']],
     ['job.essai', ['periode d\'essai', 'duree de la periode d\'essai']],
     ['job.horaire', ['horaire hebdomadaire', 'horaire de travail', 'horaire', 'duree hebdomadaire', 'heures par semaine']],
     ['job.lieu', ['lieu de travail', 'lieu d\'affectation', 'affectation']],
+    ['job.projetNom', ['nom du projet', 'intitule du projet', 'projet']],
+    ['job.projetObjet', ['objet du projet', 'description du projet', 'mission', 'objet de la mission']],
     ['job.dateContrat', ['date du contrat', 'date de signature', 'date d\'etablissement du contrat']],
     ['salary.base', ['salaire de base mensuel', 'salaire mensuel de base', 'salaire de base', 'salaire categoriel', 'salaire base', 'base']],
     ['salary.sursalaire', ['sursalaire', 'sur-salaire', 'sur salaire']],
@@ -97,7 +99,7 @@
     ['dmt.cni', ['carte d\'identite n°', 'carte d\'identite numero', 'carte d\'identite', 'piece d\'identite', 'cni']], ['dmt.ccpf', ['n° d\'immatriculation a la c.c.p.f. - a.t.', 'immatriculation css', 'n° css', 'numero css', 'c.c.p.f.']],
     ['dmt.agrom', ['n° d\'immatriculation a l\'a.g.r.o.m.', 'immatriculation ipres', 'n° ipres', 'numero ipres', 'a.g.r.o.m.', 'ipres']], ['dmt.ethnie', ['groupe ethnique']]
   ];
-  const NAMES = { 'worker.nom': 'Nom', 'worker.prenoms': 'Prénoms', 'worker.sexe': 'Sexe', 'worker.civilite': 'Civilité', 'worker.naissance': 'Date de naissance', 'worker.lieuNaissance': 'Lieu de naissance', 'worker.pays': 'Pays de naissance', 'worker.nationalite': 'Nationalité', 'worker.pere': 'Père', 'worker.mere': 'Mère', 'worker.famille': 'Situation de famille', 'worker.enfants': 'Enfants à charge', 'worker.domicile': 'Domicile', 'worker.nomsEpouses': 'Nom des épouses', 'worker.nomsEnfants': 'Noms des enfants', 'job.emploi': 'Emploi tenu', 'job.classification': 'Classification', 'job.convention': 'Convention collective', 'job.dateEngagement': 'Date d’engagement', 'job.type': 'Durée du contrat', 'job.dateFin': 'Date de fin (CDD)', 'job.essaiMois': 'Période d’essai (mois)', 'job.essaiRenouvelable': 'Essai renouvelable', 'job.horaire': 'Horaire hebdomadaire', 'job.lieu': 'Lieu de travail', 'job.lieuSignature': 'Contrat établi à', 'job.dateContrat': 'Date du contrat', 'job.exemplaires': 'Exemplaires', 'salary.base': 'Salaire de base', 'salary.sursalaire': 'Sursalaire', 'salary.transport': 'Indemnité de transport', 'salary.logement': 'Indemnité de logement', 'salary.anciennetePct': 'Ancienneté (%)', 'employer.name': 'Employeur', 'employer.siege': 'Siège social', 'employer.representant': 'Représentant', 'employer.qualite': 'Qualité du représentant', 'employer.activite': 'Activité', 'dmt.cni': 'Carte d’identité n°', 'dmt.ccpf': 'N° CSS (C.C.P.F.)', 'dmt.agrom': 'N° IPRES (A.G.R.O.M.)', 'dmt.ethnie': 'Groupe ethnique' };
+  const NAMES = { 'worker.nom': 'Nom', 'worker.prenoms': 'Prénoms', 'worker.sexe': 'Sexe', 'worker.civilite': 'Civilité', 'worker.naissance': 'Date de naissance', 'worker.lieuNaissance': 'Lieu de naissance', 'worker.pays': 'Pays de naissance', 'worker.nationalite': 'Nationalité', 'worker.pere': 'Père', 'worker.mere': 'Mère', 'worker.famille': 'Situation de famille', 'worker.enfants': 'Enfants à charge', 'worker.domicile': 'Domicile', 'worker.nomsEpouses': 'Nom des épouses', 'worker.nomsEnfants': 'Noms des enfants', 'job.emploi': 'Emploi tenu', 'job.classification': 'Classification', 'job.convention': 'Convention collective', 'job.dateEngagement': 'Date d’engagement', 'job.type': 'Type de contrat', 'job.dateFin': 'Date de fin (CDD)', 'job.projetNom': 'Nom du projet', 'job.projetObjet': 'Objet du projet', 'job.fonctionDetail': 'Fonction (détail)', 'employer.prefixe': 'Présentation de l’employeur', 'job.essaiMois': 'Période d’essai (mois)', 'job.essaiRenouvelable': 'Essai renouvelable', 'job.horaire': 'Horaire hebdomadaire', 'job.lieu': 'Lieu de travail', 'job.lieuSignature': 'Contrat établi à', 'job.dateContrat': 'Date du contrat', 'job.exemplaires': 'Exemplaires', 'salary.base': 'Salaire de base', 'salary.sursalaire': 'Sursalaire', 'salary.transport': 'Indemnité de transport', 'salary.logement': 'Indemnité de logement', 'salary.anciennetePct': 'Ancienneté (%)', 'employer.name': 'Employeur', 'employer.siege': 'Siège social', 'employer.representant': 'Représentant', 'employer.qualite': 'Qualité du représentant', 'employer.activite': 'Activité', 'dmt.cni': 'Carte d’identité n°', 'dmt.ccpf': 'N° CSS (C.C.P.F.)', 'dmt.agrom': 'N° IPRES (A.G.R.O.M.)', 'dmt.ethnie': 'Groupe ethnique' };
 
   const ALIAS = new Map(); SPEC.forEach(([key, list]) => list.forEach((a) => { if (!ALIAS.has(a)) ALIAS.set(a, key); }));
   const ALIASES_DESC = [...ALIAS.keys()].sort((a, b) => b.length - a.length);
@@ -120,11 +122,12 @@
       case 'worker.enfants': { const c = parseCount(v); if (c != null) put(f, key, c); return; }
       case 'worker.pays': case 'worker.nationalite': case 'worker.lieuNaissance': case 'worker.pere': case 'worker.mere': case 'worker.domicile': case 'worker.nomsEpouses': case 'worker.nomsEnfants': put(f, key, v); return;
       case 'job.dateEngagement': case 'job.dateContrat': case 'job.dateFin': put(f, key, parseDate(v)); return;
-      case 'job.duree': { const t = /indetermin|\bcdi\b/.test(fv) ? 'CDI' : /determin|\bcdd\b/.test(fv) ? 'CDD' : ''; put(f, 'job.type', t); const m = /du\s+(.+?)\s+au\s+(.+)$/.exec(fv); if (t === 'CDD' && m) { put(f, 'job.dateEngagement', parseDate(m[1])); put(f, 'job.dateFin', parseDate(m[2])); } return; }
+      case 'job.duree': { const t = /indetermin|\bcdi\b/.test(fv) ? 'CDI' : /projet|tache determinee|objet defini/.test(fv) ? 'CDD_PROJET' : /determin|\bcdd\b/.test(fv) ? 'CDD' : ''; put(f, 'job.type', t); const m = /du\s+(.+?)\s+au\s+(.+)$/.exec(fv); if ((t === 'CDD' || t === 'CDD_PROJET') && m) { put(f, 'job.dateEngagement', parseDate(m[1])); put(f, 'job.dateFin', parseDate(m[2])); } return; }
       case 'job.essai': { const c = /\bsans\b|aucun|neant|pas de/.test(fv) ? 0 : parseCount(v); if (c != null) { put(f, 'job.essaiMois', c); if (/renouvelable/.test(fv)) put(f, 'job.essaiRenouvelable', true); } return; }
       case 'job.horaire': { const m = /\b(\d{2})(?:[.,]\d+)?\b/.exec(fv); if (m && Number(m[1]) >= 20 && Number(m[1]) <= 60) put(f, key, Number(m[1])); return; }
       case 'salary.base': case 'salary.sursalaire': case 'salary.transport': case 'salary.logement': { const n = parseMoney(v); if (n != null && n >= 0) put(f, key, n); return; }
       case 'salary.anciennete': { const n = parseMoney(v.replace(',', '.')); if (n == null) return; if (/%/.test(v) || n <= 50) put(f, 'salary.anciennetePct', n); else put(f, 'salary.ancienneteMontant', n); return; }
+      case 'job.projetNom': case 'job.projetObjet': case 'job.fonctionDetail': case 'employer.prefixe': put(f, key, v); return;
       case 'dmt.cni': case 'dmt.ccpf': case 'dmt.agrom': case 'dmt.ethnie': put(f, key, v); return;
       default: put(f, key, v);
     }
@@ -138,12 +141,14 @@
     return found;
   }
   const SENTENCES = [
-    [/^(?:le |la |l[’'])?(.+?)\s+dont le si[eè]ge(?: social)? est (?:situ[ée]e?|sis(?:e)?)\s+(?:[àa]|au)\s+(.+?),?\s+repr[ée]sent[ée]e?\s+par\s+(.+?),?\s+en sa qualit[ée] d[e’']\s*(.+?)\.?$/i, (f, m) => { put(f, 'employer.name', clean(m[1])); put(f, 'employer.siege', clean(m[2])); put(f, 'employer.representant', clean(m[3])); put(f, 'employer.qualite', clean(m[4])); }],
+    [/^(l[’']\s?entreprise|la soci[ée]t[ée]|l[’']\s?[ée]tablissement|l[’']\s?association|le|la)?\s*(.+?)\s+dont le si[eè]ge(?: social)? est (?:situ[ée]e?|sis(?:e)?)\s+(?:[àa]|au)\s+(.+?),?\s+repr[ée]sent[ée]e?\s+par\s+(.+?),?\s+en sa qualit[ée] d[e’']\s*(.+?)\.?$/i, (f, m) => { if (m[1]) put(f, 'employer.prefixe', m[1].charAt(0).toUpperCase() + m[1].slice(1)); put(f, 'employer.name', clean(m[2])); put(f, 'employer.siege', clean(m[3])); put(f, 'employer.representant', clean(m[4])); put(f, 'employer.qualite', clean(m[5])); }],
+    [/pr[ée]vu pour une dur[ée]e de\s+.+?,\s*du\s+(.+?)\s+au\s+(.+?)\.?\s*$/i, (f, m) => { put(f, 'job.type', 'CDD'); put(f, 'job.dateEngagement', parseDate(m[1])); put(f, 'job.dateFin', parseDate(m[2])); }],
+    [/pour la dur[ée]e du projet\s*[«"“]?\s*([^»"”.,;]{2,90})/i, (f, m) => { put(f, 'job.projetNom', clean(m[1])); f['job.type'] = 'CDD_PROJET'; }],
     [/p[ée]riode d[’']essai de\s+(.+?)\s+mois/i, (f, m, t) => { const c = parseCount(m[1]); if (c != null) put(f, 'job.essaiMois', c); if (/renouvelable/i.test(t)) put(f, 'job.essaiRenouvelable', true); }],
     [/sans p[ée]riode d[’']essai/i, (f) => put(f, 'job.essaiMois', 0)],
     [/en\s+\S+\s*\((\d+)\)\s+exemplaires/i, (f, m) => put(f, 'job.exemplaires', Number(m[1]))],
     [/horaire de travail est en principe de\s+(\d{2})\s+heures/i, (f, m) => put(f, 'job.horaire', Number(m[1]))],
-    [/assumer la fonction\s+(.+?)(?:\s+[àa] l[’']adresse suivante\s*:\s*(.+?))?\.?$/i, (f, m) => { put(f, 'job.emploi', clean(m[1])); if (m[2]) put(f, 'job.lieu', clean(m[2])); }],
+    [/assumer la fonction\s+(.+?)(?:\s+[àa] l[’']adresse suivante\s*:\s*(.+?))?\.?$/i, (f, m) => { put(f, 'job.fonctionDetail', clean(m[1])); put(f, 'job.emploi', clean(m[1])); if (m[2]) put(f, 'job.lieu', clean(m[2])); }],
     [/^([A-ZÀ-Ý][A-Za-zÀ-ÿ' -]{1,28}),\s*le\s+(\d{1,2}\s*(?:er)?\s+[A-Za-zÀ-ÿ]+\s+\d{4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\s*$/, (f, m) => { put(f, 'job.lieuSignature', clean(m[1])); put(f, 'job.dateContrat', parseDate(m[2])); }],
     [/^(monsieur|madame|mademoiselle)\s*,?\s*$/i, (f, m) => assign(f, 'worker.civilite', m[1])]
   ];
@@ -189,6 +194,7 @@
   function finish(candidates) {
     candidates.forEach((c) => {
       const f = c.fields;
+      if (f['job.projetNom'] && f['job.type'] === 'CDD') f['job.type'] = 'CDD_PROJET';
       c.items = Object.keys(f).map((path) => ({ path, label: NAMES[path] || path, value: f[path] }));
     });
     return candidates;

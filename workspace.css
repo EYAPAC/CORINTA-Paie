@@ -241,7 +241,7 @@ details.ws-form > summary { cursor: pointer; padding: 4px 0 8px; }
 .ct-imp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
 .ct-imp-row { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; align-items: center; background: #f3f6fc; border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
 .ct-imp-row span { font-weight: 700; color: var(--cp-muted); }
-.ct-imp-row input[type="text"], .ct-imp-row input[type="number"], .ct-imp-row input[type="date"] { grid-column: 2; height: 34px; border: 1px solid var(--cp-line); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13px; background: #fff; width: 100%; }
+.ct-imp-row input[type="text"], .ct-imp-row input[type="number"], .ct-imp-row input[type="date"], .ct-imp-row select { grid-column: 2; height: 34px; border: 1px solid var(--cp-line); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13px; background: #fff; width: 100%; }
 .ws-field.imp input, .ws-field.imp select, .ws-field.imp textarea { border-color: #2fb67c; background: #f1fbf6; }
 .ws-field.need input, .ws-field.need select { border-color: #f4a62a; background: #fff8ea; }
 .ws-field.need label::after { content: ' · à compléter'; color: #a35f00; font-weight: 700; }

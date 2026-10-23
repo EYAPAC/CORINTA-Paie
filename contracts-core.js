@@ -15,6 +15,21 @@
   const iso = (v) => (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(str(v)) ? str(v) : '');
 
   const STATUS = ['brouillon', 'signé', 'en cours', 'terminé'];
+  /* Types de contrat : CDI, CDD à terme précis, CDD conclu pour la durée d'un projet (modèle CDD du cabinet). */
+  const TYPE_LABEL = { CDI: 'CDI — durée indéterminée', CDD: 'CDD — terme précis (dates)', CDD_PROJET: 'CDD — pour la durée d’un projet' };
+  const TYPE_SHORT = { CDI: 'CDI', CDD: 'CDD', CDD_PROJET: 'CDD projet' };
+  const isCdd = (t) => t === 'CDD' || t === 'CDD_PROJET';
+  const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize'];
+  const TENS = { 2: 'vingt', 3: 'trente', 4: 'quarante', 5: 'cinquante', 6: 'soixante' };
+  function numWords(n) {
+    n = Math.round(Number(n) || 0); if (n < 0 || n > 99) return String(n);
+    if (n <= 16) return WORDS[n]; if (n < 20) return 'dix-' + WORDS[n - 10];
+    if (n >= 70) { const r = n - (n >= 80 ? 80 : 60); const base = n >= 80 ? 'quatre-vingt' : 'soixante'; if (n === 80) return 'quatre-vingts'; return base + (n === 71 ? ' et ' : '-') + numWords(r); }
+    const d = Math.floor(n / 10), u = n % 10; return TENS[d] + (u === 0 ? '' : (u === 1 ? ' et ' : '-') + WORDS[u]);
+  }
+  const withDigits = (n) => numWords(n) + ' (' + String(Math.round(Number(n) || 0)).padStart(2, '0') + ')';
+  const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  function longDate(isoDate) { const p = String(isoDate || '').split('-').map(Number); return p.length === 3 && p[0] ? String(p[2]).padStart(2, '0') + ' ' + MOIS_FR[p[1] - 1][0].toUpperCase() + MOIS_FR[p[1] - 1].slice(1) + ' ' + p[0] : ''; }
   const FAMILLE = { celibataire: 'Célibataire', marie: 'Marié(e)', divorce: 'Divorcé(e)', veuf: 'Veuf(ve)' };
   const OBJETS = ['Embauchage', 'Licenciement', 'Expiration normale du contrat', 'Démission', 'Mutation', 'Changement de catégorie professionnelle', 'Modification du contrat de travail', 'Changement de situation de famille', 'Changement de résidence habituelle', 'Changement d’emploi', 'Décès'];
 
@@ -32,6 +47,16 @@
     mobilite: 'Cependant, il pourrait servir dans tout établissement appartenant à l’employeur et situé sur le territoire sénégalais. Les parties considèrent que l’affectation à un autre établissement n’est pas consécutive d’une modification des clauses contractuelles.'
   };
 
+  /* Clauses propres aux contrats à durée déterminée (modèle CDD) ; {duree} {debut} {fin} {projet} {objet} {finPrevue} sont remplacés à l'édition. */
+  const CLAUSES_CDD = {
+    conges: 'Le travailleur bénéficiera de congés payés conformément aux articles 54 et suivants de la Convention collective nationale interprofessionnelle.',
+    mobilite: 'Cependant, il pourrait servir dans tout bureau ou établissement de l’employeur situé dans la zone d’affectation indiquée ci-dessus. Les parties considèrent que l’affectation à un autre bureau ou établissement de l’employeur n’est pas consécutive à une modification des clauses contractuelles.',
+    duree: {
+      CDD: 'Le présent contrat est prévu pour une durée de {duree}, du {debut} au {fin}.',
+      CDD_PROJET: 'Le présent contrat est conclu pour la durée du projet « {projet} »{objet}. Il prend effet le {debut} et prend fin de plein droit à l’achèvement du projet{finPrevue}. Cette date n’est donnée qu’à titre prévisionnel : toute prolongation au-delà de la fin du projet ou de cette date fait l’objet d’un avenant écrit.'
+    }
+  };
+  const cddClause = (k, type) => (k === 'duree' ? (CLAUSES_CDD.duree[type] || '') : (isCdd(type) ? CLAUSES_CDD[k] : CLAUSES[k]));
   const uid = () => 'ct-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
 
   /** Contrat vierge, pré-rempli avec le profil de l'entreprise. */
@@ -39,11 +64,11 @@
     const p = (company && company.profile) || {};
     return {
       id: uid(), number: '', status: 'brouillon', createdAt: today || '', updatedAt: today || '',
-      employer: { name: str((company && (company.employer || company.name))), siege: str(p.siege), representant: str(p.representant), qualite: str(p.qualite) || 'gérant(e)', activite: str(p.activite), signataire: str(p.signataire) || 'Le Directeur Général' },
+      employer: { prefixe: str(p.prefixe), name: str((company && (company.employer || company.name))), siege: str(p.siege), representant: str(p.representant), qualite: str(p.qualite) || 'gérant(e)', activite: str(p.activite), signataire: str(p.signataire) || 'Le Directeur Général' },
       worker: { civilite: 'Monsieur', nom: '', prenoms: '', sexe: 'M', naissance: '', lieuNaissance: '', pays: 'Sénégal', nationalite: 'Sénégalaise', pere: '', mere: '', domicile: '', famille: 'celibataire', enfants: 0, conjointRevenus: false, epouses: 0, nomsEpouses: '', nomsEnfants: '' },
-      job: { emploi: '', classification: '', convention: 'Convention collective nationale du commerce du 16 novembre 1956', dateEngagement: '', type: 'CDI', dateFin: '', essaiMois: 3, essaiRenouvelable: true, horaire: 40, lieu: str(p.siege), lieuSignature: str(p.ville) || 'Dakar', dateContrat: '', exemplaires: 4 },
+      job: { projetNom: '', projetObjet: '', fonctionDetail: '', copieInspection: false, emploi: '', classification: '', convention: 'Convention collective nationale du commerce du 16 novembre 1956', dateEngagement: '', type: 'CDI', dateFin: '', essaiMois: 3, essaiRenouvelable: true, horaire: 40, lieu: str(p.siege), lieuSignature: str(p.ville) || 'Dakar', dateContrat: '', exemplaires: 4 },
       salary: { base: 0, sursalaire: 0, logement: 0, anciennetePct: 0, transport: 0 },
-      clauses: { references: CLAUSES.references.slice(), conges: CLAUSES.conges, prevoyance: CLAUSES.prevoyance, discipline: CLAUSES.discipline, mobilite: CLAUSES.mobilite },
+      clauses: { references: CLAUSES.references.slice(), conges: CLAUSES.conges, prevoyance: CLAUSES.prevoyance, discipline: CLAUSES.discipline, mobilite: CLAUSES.mobilite, duree: '' },
       dmt: null
     };
   }
@@ -55,9 +80,22 @@
     ['employer', 'worker', 'job', 'salary', 'clauses'].forEach((k) => { out[k] = Object.assign({}, b[k], (c && c[k]) || {}); });
     if (!Array.isArray(out.clauses.references)) out.clauses.references = CLAUSES.references.slice();
     if (!STATUS.includes(out.status)) out.status = 'brouillon';
+    if (!TYPE_LABEL[out.job.type]) out.job.type = 'CDI';
+    if (isCdd(out.job.type) && !str(out.clauses.duree)) out.clauses.duree = CLAUSES_CDD.duree[out.job.type];
     return out;
   }
 
+  /** Change le type de contrat en adaptant les valeurs par défaut non personnalisées (clauses, essai, copie à l'inspection). */
+  function switchType(c, type) {
+    if (!TYPE_LABEL[type]) return c;
+    const old = c.job.type; c.job.type = type;
+    ['conges', 'mobilite'].forEach((k) => { if (c.clauses[k] === cddClause(k, old)) c.clauses[k] = cddClause(k, type); });
+    if (!str(c.clauses.duree) || c.clauses.duree === cddClause('duree', old)) c.clauses.duree = cddClause('duree', type);
+    if (isCdd(type) && num(c.job.essaiMois) === 3) c.job.essaiMois = 0;
+    if (type === 'CDI' && num(c.job.essaiMois) === 0) c.job.essaiMois = 3;
+    if (isCdd(type) && !isCdd(old)) c.job.copieInspection = true; if (type === 'CDI') c.job.copieInspection = false;
+    return c;
+  }
   const fullName = (w) => [str(w.prenoms), str(w.nom).toUpperCase()].filter(Boolean).join(' ');
   const anciennete = (s) => Math.round(num(s.base) * num(s.anciennetePct) / 100);
   /** Salaire brut du contrat (transport compris) et brut « DMT » (hors prime de transport, comme dans le modèle). */
@@ -73,6 +111,24 @@
     return ny + '-' + String(nm).padStart(2, '0') + '-' + String(Math.min(day, last)).padStart(2, '0');
   }
   const dayDiff = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+  const dayDiffIso = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+  /** Durée entre deux dates en toutes lettres (« deux (02) ans », « six (06) mois »…) ; la date de fin est inclusive si elle clôt un mois entier. */
+  function durationWords(start, end) {
+    const a = iso(start), b = iso(end); if (!a || !b || b <= a) return '';
+    const tryEnd = (e) => { const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = e.split('-').map(Number); let months = (y2 - y1) * 12 + (m2 - m1); if (d2 < d1) months--; const days = dayDiffIso(addMonths(a, months), e); return { months, days }; };
+    let r = tryEnd(new Date(Date.parse(b) + 864e5).toISOString().slice(0, 10)); if (r.days !== 0 || r.months <= 0) r = tryEnd(b);
+    if (r.months > 0 && r.days === 0) return r.months % 12 === 0 ? withDigits(r.months / 12) + (r.months / 12 > 1 ? ' ans' : ' an') : withDigits(r.months) + ' mois';
+    const total = dayDiffIso(a, b) + 1; return r.months > 0 ? withDigits(r.months) + ' mois et ' + withDigits(r.days) + ' jour' + (r.days > 1 ? 's' : '') : withDigits(total) + ' jour' + (total > 1 ? 's' : '');
+  }
+  const monthsBetween = (a, b) => { if (!iso(a) || !iso(b)) return 0; const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number); return (y2 - y1) * 12 + (m2 - m1) + (d2 >= d1 ? 0 : -1); };
+  /** Texte de la clause de durée (CDD) avec ses variables remplacées. */
+  function dureeText(c) {
+    const j = c.job; if (!isCdd(j.type)) return '';
+    const tpl = str(c.clauses && c.clauses.duree) || CLAUSES_CDD.duree[j.type];
+    return tpl.replace(/\{duree\}/g, durationWords(j.dateEngagement, j.dateFin) || '…').replace(/\{debut\}/g, longDate(j.dateEngagement) || '…').replace(/\{fin\}/g, longDate(j.dateFin) || '…')
+      .replace(/\{projet\}/g, str(j.projetNom) || '…').replace(/\{objet\}/g, str(j.projetObjet) ? ', ' + str(j.projetObjet).replace(/[.\s]+$/, '') : '').replace(/\{finPrevue\}/g, longDate(j.dateFin) ? ', prévue le ' + longDate(j.dateFin) : '');
+  }
+
   /** Dernier jour de la période d'essai (engagement + n mois − 1 jour). */
   function trialEnd(c) {
     const j = c.job || {}; if (!iso(j.dateEngagement) || !(num(j.essaiMois) > 0)) return '';
@@ -92,6 +148,13 @@
       if (!iso(j.dateFin)) errors.push('Un contrat à durée déterminée doit avoir une date de fin.');
       else if (iso(j.dateEngagement) && j.dateFin <= j.dateEngagement) errors.push('La date de fin doit être postérieure à la date d’engagement.');
     }
+    if (j.type === 'CDD_PROJET') {
+      if (!str(j.projetNom)) errors.push('Le nom du projet est obligatoire pour un CDD pour la durée d’un projet.');
+      if (!iso(j.dateFin)) warnings.push('Fin prévisionnelle du projet non renseignée : indiquez-la (le contrat prend fin à l’achèvement du projet).');
+      else if (iso(j.dateEngagement) && j.dateFin <= j.dateEngagement) errors.push('La fin prévisionnelle du projet doit être postérieure à la date d’engagement.');
+      if (!str(j.projetObjet)) warnings.push('Objet du projet non renseigné.');
+    }
+    if (isCdd(j.type) && monthsBetween(j.dateEngagement, j.dateFin) > 24) warnings.push('Durée supérieure à 24 mois : vérifiez la durée maximale légale des contrats à durée déterminée (renouvellements compris).');
     ['base', 'sursalaire', 'logement', 'anciennetePct', 'transport'].forEach((k) => { if (num(s[k]) < 0) errors.push('Le montant « ' + k + ' » ne peut pas être négatif.'); });
     if (iso(w.naissance)) { const age = dayDiff(w.naissance, (j.dateEngagement && iso(j.dateEngagement)) || new Date().toISOString().slice(0, 10)) / 365.25; if (age < 15) errors.push('Le travailleur doit avoir au moins 15 ans à la date d’engagement.'); if (age > 75) warnings.push('Âge supérieur à 75 ans : vérifiez la date de naissance.'); }
     else warnings.push('Date de naissance non renseignée.');
@@ -128,7 +191,7 @@
         enfants: Math.max(0, Math.round(num(w.enfants))), nomsEnfants: str(w.nomsEnfants),
         dateEntree: iso(j.dateEngagement), profession: prof, emploi: str(j.emploi), categorie: str(j.classification), convention: str(j.convention),
         dateContrat: iso(j.dateContrat) || iso(j.dateEngagement), raisonSociale: str(e.name), adresseEtablissement: str(e.siege), activite: str(extra.activite) || str(e.activite),
-        type: j.type === 'CDD' ? 'CDD' : 'CDI', dateDebut: iso(j.dateEngagement), dateFin: j.type === 'CDD' ? iso(j.dateFin) : '',
+        type: isCdd(j.type) ? 'CDD' : 'CDI', dateDebut: iso(j.dateEngagement), dateFin: isCdd(j.type) ? iso(j.dateFin) : '',
         residence: str(w.domicile), horaire: num(j.horaire) || 40,
         base: tot.base, sursalaire: tot.sursalaire, logement: tot.logement, anciennetePct: num(c.salary.anciennetePct), ancienneteMontant: tot.anciennete, brut: tot.brutDmt, transport: tot.transport, tauxHoraire: tot.tauxHoraire
       }
@@ -152,12 +215,12 @@
       const name = fullName(c.worker || {}) || 'Travailleur', j = c.job || {};
       const te = trialEnd(c);
       if (te) { const d = dayDiff(today, te); if (d >= 0 && d <= 15) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: 'Fin de période d’essai de ' + name + ' le ' + te.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
-      if (j.type === 'CDD' && iso(j.dateFin)) { const d = dayDiff(today, j.dateFin); if (d < 0) out.push({ id: c.id, level: 'late', text: 'Le CDD de ' + name + ' est arrivé à échéance depuis ' + Math.abs(d) + ' j : renouveler ou clôturer.' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: 'Le CDD de ' + name + ' arrive à échéance le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
+      if (isCdd(j.type) && iso(j.dateFin)) { const d = dayDiff(today, j.dateFin), what = j.type === 'CDD_PROJET' ? 'La fin prévisionnelle du projet' + (str(j.projetNom) ? ' « ' + str(j.projetNom) + ' »' : '') + ' (CDD de ' + name + ')' : 'Le CDD de ' + name; if (d < 0) out.push({ id: c.id, level: 'late', text: what + ' est dépassé' + (j.type === 'CDD_PROJET' ? 'e' : '') + ' depuis ' + Math.abs(d) + ' j : renouveler ou clôturer.' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: what + ' arrive à échéance le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
       if (!c.dmt || c.dmt.status !== 'établie') out.push({ id: c.id, level: 'info', text: 'DMT à établir pour ' + name + '.' });
     });
     return out;
   }
 
-  const api = { STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
+  const api = { TYPE_LABEL, TYPE_SHORT, isCdd, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContracts = api;
 })(typeof window !== 'undefined' ? window : globalThis);

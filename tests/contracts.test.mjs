@@ -72,3 +72,42 @@ test('normalisation des anciens enregistrements', () => {
   const n = C.normalize({ id: 'x', worker: { nom: 'A' }, status: 'inconnu' }, company);
   assert.equal(n.worker.nom, 'A'); assert.equal(n.worker.nationalite, 'Sénégalaise'); assert.equal(n.status, 'brouillon'); assert.ok(n.clauses.discipline.length > 20);
 });
+
+test('types de contrat : CDI, CDD à terme, CDD pour la durée d’un projet', () => {
+  assert.deepEqual(Object.keys(C.TYPE_LABEL), ['CDI', 'CDD', 'CDD_PROJET']);
+  assert.equal(C.isCdd('CDD'), true); assert.equal(C.isCdd('CDD_PROJET'), true); assert.equal(C.isCdd('CDI'), false);
+  const p = filled(); p.job.type = 'CDD_PROJET'; p.job.dateFin = '2027-06-30';
+  assert.equal(C.validate(p).valid, false); assert.ok(C.validate(p).errors.some((e) => /nom du projet/i.test(e)));
+  p.job.projetNom = 'Projet Alpha'; assert.equal(C.validate(p).valid, true);
+  p.job.dateFin = ''; assert.equal(C.validate(p).valid, true); assert.ok(C.validate(p).warnings.some((w) => /Fin prévisionnelle/.test(w)));
+  p.job.dateFin = '2026-10-01'; assert.equal(C.validate(p).valid, false);
+});
+
+test('bascule de type : les valeurs par défaut suivent, les personnalisations restent', () => {
+  const c = filled(); assert.equal(c.job.essaiMois, 3);
+  C.switchType(c, 'CDD_PROJET');
+  assert.equal(c.job.essaiMois, 0); assert.equal(c.job.copieInspection, true);
+  assert.equal(c.clauses.conges, C.CLAUSES_CDD.conges); assert.equal(c.clauses.mobilite, C.CLAUSES_CDD.mobilite); assert.equal(c.clauses.duree, C.CLAUSES_CDD.duree.CDD_PROJET);
+  C.switchType(c, 'CDD'); assert.equal(c.clauses.duree, C.CLAUSES_CDD.duree.CDD);
+  c.clauses.conges = 'Clause personnalisée'; C.switchType(c, 'CDI'); assert.equal(c.clauses.conges, 'Clause personnalisée'); assert.equal(c.job.essaiMois, 3); assert.equal(c.job.copieInspection, false);
+});
+
+test('durée en toutes lettres et clause de durée du CDD', () => {
+  assert.equal(C.durationWords('2023-09-01', '2025-09-01'), 'deux (02) ans');
+  assert.equal(C.durationWords('2023-09-01', '2025-08-31'), 'deux (02) ans');
+  assert.equal(C.durationWords('2026-11-01', '2027-04-30'), 'six (06) mois');
+  assert.equal(C.durationWords('2026-11-01', '2026-11-20'), 'vingt (20) jours');
+  assert.equal(C.numWords(21), 'vingt et un'); assert.equal(C.numWords(75), 'soixante-quinze'); assert.equal(C.numWords(80), 'quatre-vingts');
+  const c = filled(); C.switchType(c, 'CDD'); c.job.dateEngagement = '2023-09-01'; c.job.dateFin = '2025-09-01';
+  assert.equal(C.dureeText(c), 'Le présent contrat est prévu pour une durée de deux (02) ans, du 01 Septembre 2023 au 01 Septembre 2025.');
+  const p = filled(); C.switchType(p, 'CDD_PROJET'); p.job.projetNom = 'Alpha'; p.job.projetObjet = 'appui à la coordination régionale'; p.job.dateFin = '2027-06-30';
+  const txt = C.dureeText(p); assert.ok(/pour la durée du projet « Alpha », appui à la coordination régionale/.test(txt)); assert.ok(/prévue le 30 Juin 2027/.test(txt));
+  assert.equal(C.dureeText(filled()), '');
+});
+
+test('alertes : fin prévisionnelle d’un projet et dépassement', () => {
+  const p = filled(); C.switchType(p, 'CDD_PROJET'); p.job.projetNom = 'Alpha'; p.job.dateFin = '2026-11-10'; p.dmt = { status: 'établie' };
+  assert.ok(C.alertsOf([p], '2026-11-01').some((a) => /fin prévisionnelle du projet « Alpha »/i.test(a.text)));
+  assert.ok(C.alertsOf([p], '2026-12-01').some((a) => a.level === 'late'));
+  assert.equal(C.dmtView(p, company).synced.type, 'CDD'); assert.equal(C.dmtView(p, company).synced.dateFin, '2026-11-10');
+});
