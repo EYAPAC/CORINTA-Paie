@@ -12,8 +12,9 @@
  */
 (function () {
   'use strict';
+  const IM = window.CorintaContractsImport;
   const K = window.CorintaContracts, WS = window.CorintaWS, D = window.CorintaDash;
-  if (!K || !WS || !D || typeof WS.registerModule !== 'function') { console.error('contracts.js : modules requis introuvables'); return; }
+  if (!K || !IM || !WS || !D || typeof WS.registerModule !== 'function') { console.error('contracts.js : modules requis introuvables'); return; }
 
   const $ = (id) => document.getElementById(id);
   const esc = D.esc, icon = D.icon;
@@ -27,18 +28,92 @@
   const inWords = (n) => { n = Math.round(Number(n) || 0); return (WORDS[n] || String(n)) + ' (' + String(n).padStart(2, '0') + ')'; };
 
   /* ───────── État de l'écran (par entreprise) ───────── */
-  const view = { companyId: '', draft: null, tab: 'contract', q: '', fStatus: '', fType: '', msg: '', timer: 0, derivedTimer: 0, dirty: false };
+  const view = { imp: null, imported: new Set(), afterImport: false, companyId: '', draft: null, tab: 'contract', q: '', fStatus: '', fType: '', msg: '', timer: 0, derivedTimer: 0, dirty: false };
   const company = () => ORG.items.find((c) => c.id === WS.state.companyId);
   const contractsOf = (c) => (Array.isArray(c.contracts) ? c.contracts : (c.contracts = []));
   function ensureView() {
     const c = company();
-    if (view.companyId !== (c && c.id)) { Object.assign(view, { companyId: c && c.id, draft: null, tab: 'contract', q: '', fStatus: '', fType: '', msg: '', dirty: false }); }
+    if (view.companyId !== (c && c.id)) { Object.assign(view, { imp: null, imported: new Set(), afterImport: false, companyId: c && c.id, draft: null, tab: 'contract', q: '', fStatus: '', fType: '', msg: '', dirty: false }); }
     if (!view.draft && c) view.draft = K.blankContract(c, todayISO());
     return c;
   }
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
   function setPath(o, p, v) { const ks = p.split('.'), last = ks.pop(); const t = ks.reduce((a, k) => (a[k] = a[k] || {}), o); t[last] = v; }
+
+  /* ───────── Import Word / Excel : lecture du fichier (dans le navigateur, rien n'est envoyé) ───────── */
+  async function xlsxAllRows(ab) {
+    const z = await unzipEntries(ab); let strings = [];
+    if (z['xl/sharedStrings.xml']) strings = [...xmlDoc(z['xl/sharedStrings.xml']).getElementsByTagName('si')].map((si) => [...si.getElementsByTagName('t')].map((x) => x.textContent).join(''));
+    const keys = Object.keys(z).filter((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort((a, b) => parseInt(a.match(/\d+/)[0], 10) - parseInt(b.match(/\d+/)[0], 10));
+    if (!keys.length) throw Error('Aucune feuille de calcul dans ce fichier Excel.');
+    const rows = [];
+    keys.forEach((k) => [...xmlDoc(z[k]).getElementsByTagName('row')].forEach((row) => {
+      const vals = [];
+      [...row.getElementsByTagName('c')].forEach((c) => {
+        const ref = c.getAttribute('r') || 'A1', letters = ref.match(/^[A-Z]+/)[0]; let col = 0; for (const ch of letters) col = col * 26 + ch.charCodeAt(0) - 64;
+        let v = (c.getElementsByTagName('v')[0] || {}).textContent || ''; const type = c.getAttribute('t');
+        if (type === 's') v = strings[Number(v)] || ''; else if (type === 'inlineStr') v = [...c.getElementsByTagName('t')].map((x) => x.textContent).join('');
+        vals[col - 1] = v;
+      });
+      rows.push(vals);
+    }));
+    return rows;
+  }
+  async function readFileBlocks(file) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (file.size > 6 * 1024 * 1024) throw Error('Fichier trop volumineux (6 Mo maximum).');
+    if (ext === 'docx' || ext === 'docm') { const z = await unzipEntries(await file.arrayBuffer()); if (!z['word/document.xml']) throw Error('Document Word illisible.'); return IM.docxXmlToBlocks(z['word/document.xml']); }
+    if (ext === 'xlsx' || ext === 'xlsm') return IM.rowsToBlocks(await xlsxAllRows(await file.arrayBuffer()));
+    if (ext === 'csv' || ext === 'tsv' || ext === 'txt') return IM.rowsToBlocks(IM.csvToRows(await file.text()));
+    if (ext === 'doc' || ext === 'xls') throw Error('L’ancien format .' + ext + ' n’est pas lu : ouvrez le fichier puis enregistrez-le au format .' + ext + 'x, et réimportez-le.');
+    if (ext === 'pdf') throw Error('Un PDF n’est pas lu automatiquement : importez le Word ou l’Excel d’origine.');
+    throw Error('Format non pris en charge : utilisez un fichier Word (.docx) ou Excel (.xlsx).');
+  }
+  async function handleFile(file) {
+    if (!file) return;
+    view.imp = { fileName: file.name, candidates: [], pick: 0, off: new Set(), error: '', busy: true }; render();
+    try {
+      const blocks = await readFileBlocks(file), cands = IM.extract(blocks);
+      view.imp.busy = false;
+      if (!cands.length) view.imp.error = 'Aucune information de contrat reconnue dans « ' + file.name + ' ». Vérifiez que le fichier contient des libellés comme « Nom », « Prénoms », « Emploi », « Date d’engagement », « Salaire de base »… ou remplissez le formulaire manuellement.';
+      else view.imp.candidates = cands;
+    } catch (e) { view.imp.busy = false; view.imp.error = (e && e.message) || String(e); }
+    render();
+  }
+  const isDate = (p) => /date|naissance$/i.test(p) && !/lieu/i.test(p);
+  function importHTML() {
+    const imp = view.imp;
+    const head = '<article class="cp-card ws-form"><div class="cp-card-head"><div><h2>Source des informations</h2><p class="cp-sub">Remplissez le formulaire à la main, ou importez un fichier Word (.docx) ou Excel (.xlsx) : le logiciel en extrait les informations du contrat, vous complétez ce qui manque. Le fichier est lu sur votre ordinateur, il n’est envoyé nulle part.</p></div></div>' +
+      '<div class="ct-bar"><button type="button" class="cp-btn" data-ct="imp-manual">✎ Remplir manuellement</button><button type="button" class="cp-btn primary" data-ct="imp-pick">' + icon('upload') + 'Importer un fichier Word ou Excel</button><input id="ctFile" type="file" accept=".docx,.docm,.xlsx,.xlsm,.csv,.tsv,.txt" hidden></div>' +
+      '<div id="ctDrop" class="ct-drop" tabindex="0">Glissez-déposez ici un contrat Word, une fiche Excel ou un tableau de recrutement</div>';
+    if (!imp) return head + '</article>';
+    if (imp.busy) return head + '<p class="cp-sub" role="status">Lecture de « ' + esc(imp.fileName) + ' »…</p></article>';
+    if (imp.error) return head + '<p class="ct-issues err" role="alert" style="margin-top:10px">' + esc(imp.error) + '</p></article>';
+    const cand = imp.candidates[imp.pick] || imp.candidates[0], n = cand.items.length;
+    const field = (it) => {
+      const id = 'ctImp_' + it.path.replace(/\./g, '_'), v = it.value;
+      if (typeof v === 'boolean') return '<input id="' + id + '" type="checkbox" data-imp-val="' + esc(it.path) + '"' + (v ? ' checked' : '') + ' aria-label="' + esc(it.label) + '">';
+      if (typeof v === 'number') return '<input id="' + id + '" type="number" data-imp-val="' + esc(it.path) + '" value="' + v + '" aria-label="' + esc(it.label) + '">';
+      if (isDate(it.path)) return '<input id="' + id + '" type="date" data-imp-val="' + esc(it.path) + '" value="' + esc(v) + '" aria-label="' + esc(it.label) + '">';
+      return '<input id="' + id + '" type="text" data-imp-val="' + esc(it.path) + '" value="' + esc(v) + '" aria-label="' + esc(it.label) + '">';
+    };
+    return head + '<div class="ct-imp"><p class="cp-sub"><b>' + esc(imp.fileName) + '</b> · ' + n + ' information' + (n > 1 ? 's' : '') + ' reconnue' + (n > 1 ? 's' : '') + '. Vérifiez, corrigez si besoin, décochez ce que vous ne voulez pas reprendre.</p>' +
+      (imp.candidates.length > 1 ? '<div class="ws-field"><label for="ctImpPick">Travailleur à reprendre (' + imp.candidates.length + ' lignes dans le fichier)</label><select id="ctImpPick">' + imp.candidates.map((c, i) => '<option value="' + i + '"' + (i === imp.pick ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></div>' : '') +
+      '<div class="ct-imp-grid">' + cand.items.map((it) => '<label class="ct-imp-row"><input type="checkbox" data-imp-chk="' + esc(it.path) + '"' + (imp.off.has(it.path) ? '' : ' checked') + ' aria-label="Reprendre : ' + esc(it.label) + '"><span>' + esc(it.label) + '</span>' + field(it) + '</label>').join('') + '</div>' +
+      '<div class="ct-bar"><button type="button" class="cp-btn primary" data-ct="imp-apply">' + icon('check') + 'Appliquer au contrat</button><button type="button" class="cp-btn" data-ct="imp-cancel">Annuler</button></div></div></article>';
+  }
+  function applyImport() {
+    const imp = view.imp; if (!imp || !imp.candidates.length) return;
+    const cand = imp.candidates[imp.pick] || imp.candidates[0], d = view.draft, only = cand.items.map((i) => i.path).filter((p) => !imp.off.has(p));
+    if (!only.length) { toast('Aucune information sélectionnée.'); return; }
+    const newNom = String(cand.fields['worker.nom'] || '').toUpperCase(), curNom = String(d.worker.nom || '').toUpperCase();
+    if (curNom && newNom && curNom !== newNom && !confirm('Le contrat en cours concerne ' + d.worker.nom + '. Remplacer ses informations par celles de ' + cand.fields['worker.nom'] + ' ?')) return;
+    const applied = IM.apply(d, cand.fields, only);
+    if (d.worker.famille === 'marie' && !d.worker.epouses) d.worker.epouses = 1;
+    view.imported = new Set(applied); view.afterImport = true; view.imp = null; view.net = null;
+    commit(); setMsg(applied.length + ' informations importées : complétez les champs signalés.'); toast(applied.length + ' informations importées dans le contrat'); render(); setTimeout(updateDerived, 30);
+  }
 
   /* ───────── Enregistrement ───────── */
   function commit(opts) {
@@ -183,7 +258,8 @@
   /* ───────── Formulaires ───────── */
   const fld = (path, label, o) => {
     o = o || {}; const d = view.draft, v = getPath(d, path), type = o.type || 'text', id = 'ct_' + path.replace(/\./g, '_'), ro = o.readonly ? ' readonly' : '';
-    const cls = 'ws-field' + (o.wide ? ' wide' : ''), attrs = ' data-ct-f="' + path + '"' + (o.redraw ? ' data-ct-r="1"' : '') + (o.title ? ' title="' + esc(o.title) + '"' : '');
+    const REQ = ['worker.nom', 'worker.prenoms', 'job.emploi', 'job.dateEngagement', 'salary.base'], miss = view.afterImport && REQ.includes(path) && (v == null || v === '' || v === 0);
+    const cls = 'ws-field' + (o.wide ? ' wide' : '') + (view.imported.has(path) ? ' imp' : '') + (miss ? ' need' : ''), attrs = ' data-ct-f="' + path + '"' + (o.redraw ? ' data-ct-r="1"' : '') + (o.title ? ' title="' + esc(o.title) + '"' : '');
     if (type === 'select') return '<div class="' + cls + '"><label for="' + id + '">' + esc(label) + '</label><select id="' + id + '"' + attrs + '>' + o.options.map(([k, l]) => '<option value="' + esc(k) + '"' + (String(v) === String(k) ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div>';
     if (type === 'textarea') return '<div class="' + cls + ' wide"><label for="' + id + '">' + esc(label) + '</label><textarea id="' + id + '" rows="' + (o.rows || 3) + '"' + attrs + '>' + esc(Array.isArray(v) ? v.join('\n') : v) + '</textarea></div>';
     if (type === 'checkbox') return '<label class="ws-check"><input type="checkbox" id="' + id + '"' + attrs + (v ? ' checked' : '') + '> ' + esc(label) + '</label>';
@@ -263,7 +339,7 @@
       '<div class="ct-bar">' + (view.tab === 'contract'
         ? '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:contract">' + icon('eye') + 'Aperçu du contrat</button><button type="button" class="cp-btn" data-ct="print:contract">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="tab:dmt">Créer la DMT →</button><button type="button" class="cp-btn" data-ct="bulletin">' + icon('file2') + 'Préparer le bulletin de paie</button>'
         : '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:dmt">' + icon('eye') + 'Aperçu de la DMT</button><button type="button" class="cp-btn" data-ct="print:dmt">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="dmt-done">' + (dmtOk ? 'DMT établie ✔ (rouvrir)' : 'Marquer la DMT comme établie') + '</button><button type="button" class="cp-btn" data-ct="tab:contract">← Retour au contrat</button>') + '</div>' +
-      '<div id="ctIssues">' + issuesHTML(d) + '</div>' + (view.tab === 'contract' ? contractTab(d) : dmtTab(d));
+      (view.tab === 'contract' ? importHTML() : '') + '<div id="ctIssues">' + issuesHTML(d) + '</div>' + (view.tab === 'contract' ? contractTab(d) : dmtTab(d));
   }
 
   /* ───────── Gestion des contrats ───────── */
@@ -293,9 +369,9 @@
   /* ───────── Actions ───────── */
   function openDraft(id, tab) {
     const c = company(), x = contractsOf(c).find((k) => k.id === id); if (!x) return;
-    view.draft = K.normalize(clone(x), c); view.tab = tab || 'contract'; view.msg = ''; view.net = null; WS.go('contract-new'); setTimeout(updateDerived, 30);
+    view.imp = null; view.imported = new Set(); view.afterImport = false; view.draft = K.normalize(clone(x), c); view.tab = tab || 'contract'; view.msg = ''; view.net = null; WS.go('contract-new'); setTimeout(updateDerived, 30);
   }
-  function newDraft() { const c = company(); view.draft = K.blankContract(c, todayISO()); view.tab = 'contract'; view.msg = ''; view.net = null; WS.go('contract-new'); }
+  function newDraft() { const c = company(); view.imp = null; view.imported = new Set(); view.afterImport = false; view.draft = K.blankContract(c, todayISO()); view.tab = 'contract'; view.msg = ''; view.net = null; WS.go('contract-new'); }
   function click(e) {
     const mod = WS.state.module; if (mod !== 'contract-new' && mod !== 'contract-list') return false;
     const b = e.target.closest('[data-ct]'); if (!b) return false;
@@ -305,6 +381,10 @@
     else if (a === 'preview' || a === 'print') { commit(); openDoc(arg, view.draft, a === 'print'); }
     else if (a === 'dmt-done') { const d = view.draft; d.dmt = Object.assign({}, d.dmt || {}); d.dmt.status = d.dmt.status === 'établie' ? 'brouillon' : 'établie'; commit(); toast(d.dmt.status === 'établie' ? 'DMT marquée comme établie' : 'DMT rouverte'); render(); }
     else if (a === 'bulletin') prepareBulletin();
+    else if (a === 'imp-pick') { const f = $('ctFile'); if (f) f.click(); }
+    else if (a === 'imp-manual') { view.imp = null; render(); const x = document.querySelector('[data-ct-f="worker.nom"]'); if (x) { x.scrollIntoView({ block: 'center' }); x.focus(); } }
+    else if (a === 'imp-apply') applyImport();
+    else if (a === 'imp-cancel') { view.imp = null; render(); }
     else if (a === 'new') newDraft();
     else if (a === 'edit') openDraft(arg, 'contract');
     else if (a === 'dmt') openDraft(arg, 'dmt');
@@ -322,6 +402,10 @@
       return false;
     }
     if (mod !== 'contract-new') return false;
+    if (t.id === 'ctFile') { const f = t.files && t.files[0]; t.value = ''; handleFile(f); return true; }
+    if (t.id === 'ctImpPick' && view.imp) { view.imp.pick = Number(t.value) || 0; view.imp.off = new Set(); render(); return true; }
+    if (t.dataset.impChk && view.imp) { if (t.checked) view.imp.off.delete(t.dataset.impChk); else view.imp.off.add(t.dataset.impChk); return true; }
+    if (t.dataset.impVal && view.imp) { const c = view.imp.candidates[view.imp.pick], it = c.items.find((i) => i.path === t.dataset.impVal); if (it) { it.value = typeof it.value === 'boolean' ? t.checked : typeof it.value === 'number' ? Number(t.value) || 0 : t.value; c.fields[it.path] = it.value; } return true; }
     if (t.dataset.ctPick !== undefined) { if (t.value) openDraft(t.value, view.tab); else newDraft(); return true; }
     if (t.dataset.ctF) { applyField(t); if (t.dataset.ctR) render(); setTimeout(updateDerived, 30); return true; }
     return false;
@@ -336,10 +420,15 @@
   function input(e) {
     const t = e.target, mod = WS.state.module;
     if (mod === 'contract-list' && t.id === 'ctQ') { view.q = t.value; render(); const f = $('ctQ'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } return true; }
+    if (mod === 'contract-new' && t.dataset.impVal) return true;
     if (mod === 'contract-new' && t.dataset.ctF && t.tagName !== 'SELECT' && t.type !== 'checkbox') { applyField(t); clearTimeout(view.derivedTimer); view.derivedTimer = setTimeout(updateDerived, 500); return true; }
     return false;
   }
   const render = () => WS.render();
+  document.addEventListener('dragover', (e) => { const z = e.target.closest && e.target.closest('#ctDrop'); if (z) { e.preventDefault(); z.classList.add('over'); } });
+  document.addEventListener('dragleave', (e) => { const z = e.target.closest && e.target.closest('#ctDrop'); if (z) z.classList.remove('over'); });
+  document.addEventListener('drop', (e) => { const z = e.target.closest && e.target.closest('#ctDrop'); if (!z) return; e.preventDefault(); z.classList.remove('over'); handleFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
+  document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.id === 'ctDrop') { e.preventDefault(); const f = $('ctFile'); if (f) f.click(); } });
 
   WS.registerModule('contract-new', { render: (c) => { ensureView(); return elaborationHTML(c); }, click, change, input, after: () => { if (!view.net) setTimeout(updateDerived, 30); } });
   WS.registerModule('contract-list', { render: (c) => { ensureView(); return listHTML(c); }, click, change, input });
