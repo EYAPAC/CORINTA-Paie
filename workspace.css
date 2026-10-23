@@ -211,3 +211,25 @@
 .ws-grid-fields .ws-field input:disabled { background: #f3f6fc; color: #5a6a86; cursor: not-allowed; }
 
 .cp-warn { color: #b3261e; cursor: help; font-weight: 700; }
+
+/* ───────── Contrats et DMT ───────── */
+.ws-field.wide, .ws-grid-fields .wide { grid-column: 1 / -1; }
+.ws-field textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--cp-line); border-radius: 10px; font: inherit; font-size: 13.5px; background: #fff; color: var(--cp-ink); resize: vertical; }
+.ws-field textarea:focus { outline: none; border-color: var(--cp-primary); box-shadow: var(--cp-focus); }
+.ws-check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; align-self: end; padding: 10px 0; }
+.ws-check input { width: 17px; height: 17px; accent-color: var(--cp-primary); }
+.ct-tabs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-bottom: 2px solid var(--cp-line); }
+.ct-tabs button { border: 0; background: none; font: inherit; font-weight: 600; color: var(--cp-muted); padding: 10px 16px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.ct-tabs button[aria-selected="true"] { color: var(--cp-primary-700); border-bottom-color: var(--cp-primary); }
+.ct-tabs .cp-sub { margin-left: auto; }
+.ct-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.ct-issues { margin: 0; padding: 8px 14px 8px 30px; background: #fff7e6; border: 1px solid #f1d49a; border-radius: 10px; font-size: 13px; color: #6b4a00; }
+.ct-issues.err { background: #fdeceb; border-color: #f3b6b0; color: #8a1f17; }
+.ct-ok { margin: 0; color: #11794d; font-weight: 600; font-size: 13px; }
+.ct-derived { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.ct-derived div, .ct-ro { background: #f3f6fc; border-radius: 10px; padding: 8px 12px; display: grid; gap: 2px; }
+.ct-derived span, .ct-ro span { font-size: 11.5px; color: var(--cp-muted); font-weight: 600; } .ct-derived b, .ct-ro b { font-size: 14px; }
+.ct-ro-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin-top: 8px; }
+.ct-missing { background: #eaf2ff; border: 1px solid #bcd3fa; border-radius: 10px; padding: 9px 14px; font-size: 13px; }
+.ct-mini { height: 32px; border: 1px solid var(--cp-line); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; background: #fff; }
+details.ws-form > summary { cursor: pointer; padding: 4px 0 8px; }

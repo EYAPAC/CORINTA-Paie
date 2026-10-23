@@ -28,6 +28,8 @@
 <script src="leave-rules.js"></script>
 <script src="excel-bulletin.js"></script>
 <script src="integrity.js"></script>
+<script src="contracts-core.js"></script>
+
 <script src="dashboard.js"></script>
 <script>
 function readJSON(key,fallback){try{let v=JSON.parse(localStorage.getItem(key)||'null');return v===null||v===undefined?fallback:v}catch{return fallback}}function readHistoryStore(){let h=readJSON('paieHistory',[]);return Array.isArray(h)?h:[]}function writeStore(key,value){try{localStorage.setItem(key,typeof value==='string'?value:JSON.stringify(value));return true}catch(err){alert('Enregistrement impossible : le stockage du navigateur est plein ou bloqué. Exportez une sauvegarde JSON puis supprimez d’anciennes archives.');return false}}
@@ -105,7 +107,8 @@ bootstrapForm();refreshPayslip(false);
 <script src="dashboard-ui.js"></script>
 <script src="workspace.js"></script>
 
-<script src="shell.js"></script>
+<script src="shell.js"></script>
+<script src="contracts.js"></script>
 
 <script src="auto-recalc.js"></script>
 

@@ -17,6 +17,7 @@
   const esc = D.esc, icon = D.icon;
   const PERIOD_RE = /^[0-9]{4}-[0-9]{2}$/;
   const st = { open: false, companyId: '', module: 'dashboard', decl: 'social', period: '', range: '6', from: '', to: '', metric: 'gross', q: '', fPeriod: '', fStatus: '', sq: '', sort: 'recent', sel: new Set(), returnTo: null };
+  const MODS = {};   // modules enregistrés par d'autres fichiers (ex. contracts.js)
   const MODULE_OF = { dashboard: 'dashboard', employees: 'payslips', payslips: 'payslips', pay: 'payslips', social: 'charges', taxes: 'charges', charges: 'charges', declarations: 'declarations', deadlines: 'declarations', documents: 'documents', settings: 'settings', params: 'params' };
   const DECL_OF = { social: 'social', taxes: 'taxes', charges: 'social' };
   const cur = (html) => html.split('FCFA').join('F CFA'); // le modèle écrit « F CFA »
@@ -361,11 +362,12 @@
     if (!c) { close({ returning: false }); if (window.CorintaShell) window.CorintaShell.go('companies'); else activateView('companies'); return; }
     try {
       const recs = allRecords().filter((r) => r.companyId === c.id), m = modelFor(c, recs), mod = st.module;
-      const html = mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m, recs) : mod === 'charges' ? chargesHTML(c, recs) : mod === 'documents' ? documentsHTML(c, recs) : mod === 'settings' ? settingsHTML(c, m) : mod === 'params' ? paramsHTML(c, m) : dashboardHTML(m, c);
+      const html = MODS[mod] ? MODS[mod].render(c, m, recs) : mod === 'payslips' ? payslipsHTML(c, recs) : mod === 'declarations' ? declarationsHTML(c, m, recs) : mod === 'charges' ? chargesHTML(c, recs) : mod === 'documents' ? documentsHTML(c, recs) : mod === 'settings' ? settingsHTML(c, m) : mod === 'params' ? paramsHTML(c, m) : dashboardHTML(m, c);
       const box = $('wsContent'), scroll = box.scrollTop, focusId = document.activeElement && document.activeElement.id;
       box.innerHTML = html;
       if (mod === st.lastModule) box.scrollTop = scroll;
       st.lastModule = mod;
+      if (MODS[mod] && MODS[mod].after) MODS[mod].after();
       if (focusId === 'wsPQ' && $('wsPQ')) { const f = $('wsPQ'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
       const un = userName(); $('wsUserName').textContent = un || 'Administrateur'; $('wsAvatar').textContent = (un || 'A').trim().slice(0, 1).toUpperCase();
       const n = m.alerts.filter((a) => a.level !== 'info').length, b = $('wsBellCount'); b.textContent = n > 9 ? '9+' : String(n); b.classList.toggle('hidden', n === 0);
@@ -447,6 +449,7 @@
   function bind() {
     const root = $('ws');
     root.addEventListener('click', (e) => {
+      const mm = MODS[st.module]; if (mm && mm.click && mm.click(e)) return;
       const nv = e.target.closest('[data-nav]'); if (nv) { navTo(nv.dataset.nav); return; }
       const mbtn = e.target.closest('[data-m]'); if (mbtn) { $('wsMenu').classList.add('hidden'); go(mbtn.dataset.m); return; }
       const me = e.target.closest('[data-metric]'); if (me) { st.metric = me.dataset.metric; render(); return; }
@@ -461,6 +464,7 @@
     });
     root.addEventListener('change', (e) => {
       const t = e.target;
+      const mm = MODS[st.module]; if (mm && mm.change && mm.change(e)) return;
       if (t.dataset && t.dataset.cfg) { if (window.CorintaSettingsSync) window.CorintaSettingsSync.ensure(); const c = $(t.dataset.cfg); if (c) { c.value = t.value; if (window.CorintaSettingsSync) window.CorintaSettingsSync.apply(); render(); } return; }
       if (t.matches('select[data-act="status"]')) { UI.setStatus(Number(t.dataset.i), t.value); return; }
       if (t.id === 'wsPeriod' && PERIOD_RE.test(t.value)) { st.period = t.value; render(); return; }
@@ -471,6 +475,7 @@
       if (t.id === 'wsFP') { st.fPeriod = t.value; render(); return; }
       if (t.id === 'wsFS') { st.fStatus = t.value; render(); }
     });
+    root.addEventListener('input', (e) => { const mm = MODS[st.module]; if (mm && mm.input) mm.input(e); });
     root.addEventListener('input', (e) => { if (e.target.dataset && e.target.dataset.cfg) { if (window.CorintaSettingsSync) window.CorintaSettingsSync.ensure(); const c = $(e.target.dataset.cfg); if (c) { c.value = e.target.value; window.CorintaSettingsSync && window.CorintaSettingsSync.queue(600); } } });
     root.addEventListener('input', (e) => { if (e.target.id === 'wsPQ') { st.sq = e.target.value; render(); } if (e.target.id === 'wsSearch') search(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st.open) { $('wsMenu').classList.add('hidden'); $('wsResults').classList.add('hidden'); } });
@@ -486,6 +491,6 @@
   };
 
   build(); bind();
-  window.CorintaWS = { open, close, isOpen: () => st.open, render, go, state: st };
+  window.CorintaWS = { open, close, isOpen: () => st.open, render, go, state: st, registerModule: (name, def) => { MODS[name] = def; MODULE_OF[name] = name; } };
   syncPill();
 })();

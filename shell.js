@@ -25,6 +25,8 @@
   /* Sous-menu de « Paramètres » : accès direct aux cartes de la page (ancres par titre, sans dupliquer la page). */
   const SETTINGS_SUB = [['Tableau de bord', 'Tableau de bord et stockage'], ['Barèmes par secteur', 'Barèmes par secteur'], ['Taux et plafonds', 'Taux et plafonds'], ['Barème annuel IR', 'Barème IR'], ['Barème TRIMF', 'Barème TRIMF'], ['Rubriques récurrentes', 'Rubriques récurrentes']];
   const PREF = 'cpSideCollapsed';
+  const GROUP = { after: 'charges', id: 'contracts', icon: 'file2', title: 'Contrats', subs: [['contract-new', 'Élaboration de contrat'], ['contract-list', 'Gestion des contrats']] };
+  let groupOpen = false;
   const TABS = [
     ['payslips', 'wallet', 'Bulletins de paie'],
     ['declarations', 'file', 'Déclarations sociales et fiscales'], ['charges', 'coin', 'Charges et cotisations'],
@@ -46,7 +48,7 @@
     bar.id = 'cnav'; bar.className = 'cnav hidden'; bar.setAttribute('aria-label', 'Navigation du dossier');
     bar.innerHTML = '<button type="button" class="cnav-back" data-c="companies" aria-label="Retour à la liste des entreprises">' + icon('chevron').replace('<svg', '<svg style="transform:rotate(180deg)"') + '<span>Entreprises</span></button>' +
       '<button type="button" class="cnav-company" data-c="dashboard" title="Tableau de bord du dossier (affiché à l’ouverture)">' + icon('building2') + '<b id="cnavName">—</b></button>' +
-      '<div class="cnav-tabs" role="tablist">' + TABS.map(([k, i, t]) => '<button type="button" role="tab" data-c="' + k + '">' + icon(i) + '<span>' + esc(t) + '</span></button>').join('') + '</div>';
+      '<div class="cnav-tabs" role="tablist">' + TABS.map(([k, i, t]) => '<button type="button" role="tab" data-c="' + k + '">' + icon(i) + '<span>' + esc(t) + '</span></button>' + (k === GROUP.after ? '<div class="cnav-group"><button type="button" data-g="' + GROUP.id + '" aria-expanded="false" aria-controls="cnavSubs">' + icon(GROUP.icon) + '<span>' + esc(GROUP.title) + '</span>' + icon('chevron').replace('<svg', '<svg class="nv-chev"') + '</button><div class="cnav-subs hidden" id="cnavSubs">' + GROUP.subs.map(([sk, sl]) => '<button type="button" role="tab" data-c="' + sk + '"><span>' + esc(sl) + '</span></button>').join('') + '</div></div>' : '')).join('') + '</div>';
     document.body.appendChild(bar);
     const t = document.createElement('button');
     t.type = 'button'; t.className = 'nav-toggle'; t.id = 'navToggle'; t.setAttribute('aria-label', 'Ouvrir le menu'); t.setAttribute('aria-expanded', 'false');
@@ -79,6 +81,9 @@
     side.querySelectorAll('[data-k]').forEach((b) => { const on = b.dataset.k === cur.main; b.classList.toggle('active', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     const cfg = side.querySelector('[data-k=config]'), sub = $('nvSettings'), openSet = cur.main === 'config';
     sub.classList.toggle('hidden', !openSet); cfg.setAttribute('aria-expanded', String(openSet));
+    const inGroup = GROUP.subs.some((s) => s[0] === cur.tab), subs = $('cnavSubs'), gb = bar.querySelector('[data-g]');
+    if (inGroup) groupOpen = true;
+    if (subs) { subs.classList.toggle('hidden', !groupOpen); gb.setAttribute('aria-expanded', String(groupOpen)); gb.classList.toggle('has-active', !!ctx && inGroup); }
     bar.querySelectorAll('[data-c]').forEach((b) => {
       const on = !!ctx && b.dataset.c === cur.tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on));
       if (on) {
@@ -100,7 +105,7 @@
     if (ORG.active !== ctx) setActiveCompany(ctx, true);
     WS.open(ctx, k);
   }
-  function go(k) { if (TABS.some((t) => t[0] === k)) goTab(k); else goMain(k); }
+  function go(k) { if (TABS.some((t) => t[0] === k) || GROUP.subs.some((s) => s[0] === k)) goTab(k); else goMain(k); }
   const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   function scrollToCard(label) {
     const h = [...document.querySelectorAll('#config h2')].find((x) => norm(x.textContent).indexOf(norm(label)) === 0);
@@ -127,7 +132,7 @@
     });
     $('navCollapse').addEventListener('click', () => setCollapsed(!document.body.classList.contains('side-collapsed')));
     document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b' && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName)) { e.preventDefault(); setCollapsed(!document.body.classList.contains('side-collapsed')); } });
-    $('cnav').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (!b) return; if (b.dataset.c === 'companies') goMain('companies'); else goTab(b.dataset.c); });
+    $('cnav').addEventListener('click', (e) => { const g = e.target.closest('[data-g]'); if (g) { groupOpen = !groupOpen; sync(); return; } const b = e.target.closest('[data-c]'); if (!b) return; if (b.dataset.c === 'companies') goMain('companies'); else goTab(b.dataset.c); });
     $('navToggle').addEventListener('click', () => { const on = !document.body.classList.contains('nav-open'); document.body.classList.toggle('nav-open', on); $('navToggle').setAttribute('aria-expanded', String(on)); });
     $('navScrim').addEventListener('click', closeDrawer);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });

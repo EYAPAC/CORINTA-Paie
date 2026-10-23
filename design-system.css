@@ -347,3 +347,13 @@ body.has-cnav .main { margin-left: var(--cnav-w); }
 .cp-person-btn:hover b { color: var(--cp-primary); text-decoration: underline; }
 .cp-person-btn:focus-visible { outline: none; box-shadow: var(--cp-focus); }
 .cp-person .cp-avatar { display: grid; place-items: center; line-height: 1; flex: 0 0 auto; }
+
+/* groupe « Contrats » du menu du dossier */
+.cnav-group { display: grid; gap: 3px; }
+.cnav-subs { display: grid; gap: 2px; margin-left: 14px; padding-left: 8px; border-left: 2px solid rgba(255, 255, 255, .3); }
+.cnav-subs.hidden { display: none; }
+.cnav button[data-g] .nv-chev { margin-left: auto; width: 14px; height: 14px; flex: 0 0 14px; transition: transform .15s; }
+.cnav button[data-g][aria-expanded="true"] .nv-chev { transform: rotate(90deg); }
+.cnav button[data-g].has-active { background: rgba(255, 255, 255, .18); font-weight: 700; }
+.cnav-subs button { padding: 8px 10px; font-size: 13px; }
+@media (max-width: 900px) { .cnav-group { display: flex; align-items: center; gap: 2px; } .cnav-subs { display: flex; margin: 0; padding: 0; border: 0; } .cnav button[data-g] .nv-chev { display: none; } }
