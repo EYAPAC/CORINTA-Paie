@@ -158,110 +158,62 @@
     activateView('pay'); toast('Bulletin préparé depuis le contrat ' + d.number + ' : vérifiez puis enregistrez');
   }
 
-  /* ───────── Documents imprimables (modèles fournis) ───────── */
-  const DOC_CSS = '.ctdoc{background:#fff;color:#111;box-sizing:border-box;width:100%;max-width:794px;margin:0 auto;padding:34px 44px;font:12.5px/1.5 "Times New Roman",Times,serif}.ctdoc *{box-sizing:border-box}.ctdoc h1{font-size:19px;text-align:center;margin:0;letter-spacing:.5px}.ctdoc h2{font-size:14px;text-align:center;margin:2px 0 16px}.ctdoc p{margin:0 0 7px;text-align:justify}.ctdoc .row{margin:2px 0}.ctdoc .u{border-bottom:1px solid #111;padding:0 6px;font-weight:700}.ctdoc .art{margin:11px 0 3px;font-weight:700}.ctdoc ol{margin:3px 0 6px 18px;padding:0}.ctdoc li{margin-bottom:4px;text-align:justify}.ctdoc table.sal{border-collapse:collapse;margin:6px 0}.ctdoc table.sal td{padding:2px 22px 2px 0}.ctdoc .sign{display:flex;justify-content:space-between;margin-top:26px}.ctdoc .sign div{width:44%;min-height:110px}.ctdoc .center{text-align:center}' +
-    '.ctdoc.dmt{font:9.4px/1.35 Arial,Helvetica,sans-serif;padding:22px 30px}.ctdoc.dmt h1{font-size:13px;text-align:left}.ctdoc.dmt .top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.ctdoc.dmt .stamp{width:42%;min-height:70px;border:1px solid #111;padding:5px 7px;text-align:center;font-size:9px}.ctdoc.dmt .refs{font-size:8.6px;margin:5px 0}.ctdoc.dmt .box{display:inline-block;min-width:20px;border:1px solid #111;text-align:center;padding:1px 4px;margin-right:2px}.ctdoc.dmt .objet span{display:inline-block;margin:1px 8px 1px 0}.ctdoc.dmt .objet span.sel{border:1.5px solid #111;padding:0 4px;font-weight:700}.ctdoc.dmt .sec{font-weight:700;margin:7px 0 2px;text-transform:uppercase}.ctdoc.dmt .l{margin:1.5px 0;display:flex;flex-wrap:wrap;gap:3px 14px}.ctdoc.dmt .l b{font-weight:700}.ctdoc.dmt .fill{border-bottom:1px dotted #111;padding:0 4px;min-width:90px;display:inline-block;font-weight:700}.ctdoc.dmt table.sal{width:74%;border-collapse:collapse;margin:3px 0}.ctdoc.dmt table.sal td{border:1px solid #111;padding:2px 6px}.ctdoc.dmt table.sal td:last-child{text-align:right;font-weight:700;width:30%}.ctdoc.dmt .note{font-size:8px;margin-top:6px}.ctdoc.dmt .sign{margin-top:12px}.ctdoc.dmt .sign div{min-height:62px}';
-  const val = (v, w) => '<span class="u">' + (esc(str(v)) || '&nbsp;'.repeat(w || 8)) + '</span>';
-
-  function contractDoc(d) {
-    const w = d.worker, j = d.job, e = d.employer, s = K.salaryTotals(d.salary), cdd = K.isCdd(j.type), projet = j.type === 'CDD_PROJET';
-    const fem = w.sexe === 'F', fa = fem ? 'Madame' : (w.civilite || 'Monsieur');
-    const n = (r) => (cdd ? '' : r + '. ');   // le modèle CDI numérote les rubriques, le modèle CDD non
-    const fam = (K.FAMILLE[w.famille] || '') + (K.num(w.enfants) > 0 ? ', ' + String(Math.round(K.num(w.enfants))).padStart(2, '0') + ' enfant' + (K.num(w.enfants) > 1 ? 's' : '') : '');
-    const essai = K.num(j.essaiMois) > 0
-      ? 'Le présent contrat est conclu avec une période d’essai de ' + inWords(j.essaiMois) + ' mois' + (j.essaiRenouvelable ? ', renouvelable tacitement' : '') + ', au cours de laquelle chacune des parties pourra y mettre fin conformément aux dispositions légales et réglementaires en vigueur.'
-      : (cdd ? '' : 'Le présent contrat est conclu sans période d’essai.');
-    const horaire = K.num(j.horaire) > 0 ? 'L’horaire de travail est en principe de ' + K.num(j.horaire) + ' heures par semaine' + (K.num(j.horaire) === 40 ? ', soit 173,33 heures le mois' : '') + '.' : '';
-    const refs = (d.clauses.references || []).filter((r) => str(r)).map((r) => '<li>' + esc(r) + '</li>').join('');
-    const salRows = [['Salaire de base', s.base], ['Sursalaire', s.sursalaire]].concat(s.logement > 0 ? [['Indemnité de logement', s.logement]] : [], s.anciennete > 0 ? [['Prime d’ancienneté (' + K.num(d.salary.anciennetePct) + ' %)', s.anciennete]] : [], [['Indemnité de transport', s.transport]]);
-    const repNom = str(e.representant).replace(/^(monsieur|madame|mademoiselle|m\.|mme)\s+/i, '');
-    const dureeContrat = projet ? 'Durée déterminée, pour la durée du projet « ' + str(j.projetNom) + ' »' : (cdd ? 'Durée déterminée' : 'Durée Indéterminée');
-    const lieuFonction = esc(fa) + ' ' + esc(K.fullName(w)) + ' est amené(e) à assumer la fonction ' + esc(str(j.fonctionDetail) || j.emploi) + (j.lieu ? ' à l’adresse suivante : ' + esc(j.lieu) : '') + '.';
-    const copie = j.copieInspection ? ' et (copie adressée à l’Inspection régionale du travail et de la sécurité sociale de ' + esc(j.lieuSignature) + ')' : '';
-    return '<div class="ctdoc"><h1>CONTRAT DE TRAVAIL</h1><h2>' + (cdd ? 'A DUREE DETERMINEE' : 'A DUREE INDETERMINEE') + '</h2>' + (projet ? '<p class="center"><i>(pour la durée du projet « ' + esc(j.projetNom) + ' »)</i></p>' : '') +
-      '<p><b>Entre les Soussignés :</b></p><p>' + esc([e.prefixe, e.name].filter(Boolean).join(' ')) + (e.siege ? ' dont le siège social est situé à ' + esc(e.siege) : '') + (e.representant ? ', représenté par ' + esc(e.representant) + (e.qualite ? ', en sa qualité de ' + esc(e.qualite) : '') : '') + '</p><p><b>Désigné(e) ci-après « L’employeur »</b></p>' +
-      '<p><b>Et,</b></p><p>' + esc(fa) + ',</p>' +
-      '<div class="row">Nom : ' + val(str(w.nom).toUpperCase(), 14) + '</div><div class="row">Prénoms : ' + val(w.prenoms, 14) + '</div>' +
-      '<div class="row">Date et Lieu de Naissance : ' + val((frDate(w.naissance) || '') + (w.lieuNaissance ? ' à ' + w.lieuNaissance : ''), 14) + '</div><div class="row">Nationalité : ' + val(w.nationalite, 10) + '</div>' +
-      '<div class="row">Filiation : ' + val((cdd ? '' : (fem ? 'Fille de ' : 'Fils de ')) + (w.pere || '…') + ' et ' + (w.mere || '…'), 14) + '</div><div class="row">Situation de Famille : ' + val(fam, 10) + '</div><div class="row">Domicilié(e) : ' + val(w.domicile, 14) + '</div>' +
-      '<p style="margin-top:8px"><b>Désigné(e) ci-après « LE TRAVAILLEUR »</b></p>' +
-      '<p>Il a été conclu le Contrat de Travail aux clauses ci-dessous, conformément aux dispositions du décret N° 63-00-118 /MFPT/DTSS du 19 Février 1963 fixant les formes et modalités d’établissement du contrat du travail et de l’engagement à l’essai.</p>' +
-      '<div class="row"><b>' + n('I') + 'EMPLOI TENU :</b> ' + val(j.emploi, 14) + '</div><div class="row"><b>' + n('II') + 'CLASSIFICATION PROFESSIONNELLE :</b> ' + val(j.classification, 12) + '</div><div class="row"><b>' + n('III') + 'DATE DE L’ENGAGEMENT :</b> ' + val(frDate(j.dateEngagement), 10) + '</div>' +
-      '<div class="row"><b>' + n('IV') + 'DUREE DU CONTRAT :</b> ' + val(dureeContrat, 12) + '</div>' +
-      '<div class="art">' + n('V') + 'REFERENCES AUX TEXTES REGISSANT LE CONTRAT :</div><ol>' + refs + '</ol>' +
-      '<div class="art">' + n('VI') + 'CONDITIONS PARTICULIERES</div>' + (essai || horaire ? '<p>' + esc(cdd ? horaire : essai + ' ' + horaire) + (cdd && essai ? ' ' + esc(essai) : '') + '</p>' : '') +
-      '<p><b>Lieu et durée de travail :</b> ' + lieuFonction + '</p>' +
-      (str(d.clauses.mobilite) ? '<p>' + esc(d.clauses.mobilite) + '</p>' : '') +
-      (cdd ? '<p>' + esc(K.dureeText(d)) + '</p>' : '') +
-      '<p><b>Régime des congés payés :</b> ' + esc(d.clauses.conges) + '</p><p><b>Prévoyance sociale :</b> ' + esc(d.clauses.prevoyance) + '</p><p><b>Discipline - Secret professionnel :</b> ' + esc(d.clauses.discipline) + '</p>' +
-      '<div class="art">' + n('VII') + 'SALAIRE</div><p>Le salaire brut mensuel est ainsi décomposé :</p><table class="sal">' + salRows.map(([l, v]) => '<tr><td>' + esc(l) + '</td><td style="text-align:right"><b>' + money(v) + '</b> FCFA</td></tr>').join('') + '<tr><td><b>' + (cdd ? 'Soit un total de francs CFA (hors indemnité de transport)' : 'Total brut mensuel (transport compris)') + '</b></td><td style="text-align:right"><b>' + money(cdd ? s.brutDmt : s.brutContrat) + '</b> FCFA</td></tr></table>' +
-      '<div class="art">' + n('VIII') + (cdd ? '' : '') + '</div><p>' + esc(fa) + ' ' + esc(K.fullName(w)) + ' déclare formellement n’être lié(e) à aucun employeur et être libre de tout engagement.</p>' +
-      '<p class="center">Le présent contrat est établi à ' + esc(j.lieuSignature) + ' en ' + esc(inWords(j.exemplaires)) + ' exemplaires originaux' + copie + '.</p><p class="center">' + esc(j.lieuSignature) + ', le ' + esc(longDate(j.dateContrat || j.dateEngagement)) + '</p>' +
-      '<div class="sign"><div><b>' + esc(e.signataire || 'L’employeur') + '</b>' + (cdd && repNom ? '<br><br><br>' + esc(repNom) : '') + '</div><div><b>Le travailleur</b>' + (cdd ? '<br><br><br>' + esc(K.fullName(w)) : '') + '<br><small>(Signature précédée de la mention « Lu et Approuvé »)</small></div></div></div>';
-  }
-
-  function dmtDoc(d, co) {
-    const v = K.dmtView(d, co), s = v.synced, x = v.extra, cdd = s.type === 'CDD';
-    const mat = str(x.matricule).toUpperCase().padEnd(6, ' ').slice(0, 6).split('');
-    const L = (label, value) => '<span>' + esc(label) + ' <span class="fill">' + (esc(str(value)) || '&nbsp;') + '</span></span>';
-    const hor = [40, 42, 44, 48].map((h) => '<span class="' + (s.horaire === h ? 'box' : '') + '" style="margin-right:10px">' + h + ' heures</span>').join('');
-    return '<div class="ctdoc dmt"><div class="top"><div><h1>DECLARATION DE MOUVEMENT DU TRAVAILLEUR</h1><div class="row">N° ' + (esc(x.numero) || '..................') + ' du ' + (frDate(x.date) || '..................') + '</div></div><div class="stamp"><b>Cachet et raison sociale de l’employeur</b><br>' + esc(s.raisonSociale) + '<br>' + esc(s.adresseEtablissement) + '</div></div>' +
-      '<div class="refs"><b>REFERENCES</b><br>Article 193 (Alinéas 2, 3, 4) du Code du Travail (loi n° 61-34 du 15 juin 1961). Arrêté ministériel n° 7301 du 17 mai 1963 déterminant les modalités des déclarations de mouvements de travailleurs (J.O. 22 juin 1963, p. 825).</div>' +
-      '<div class="l"><b>N° d’immatriculation du travailleur au fichier central de la main-d’œuvre</b> ' + '<span style="white-space:nowrap">' + mat.map((ch, i) => '<span><small>' + 'ABCDEF'[i] + '</small><span class="box">' + (esc(ch.trim()) || '&nbsp;') + '</span></span>').join('') + '</span></div>' +
-      '<div class="sec">Objet de la présente déclaration</div><div class="objet">' + K.OBJETS.map((o) => '<span class="' + (o === x.objet ? 'sel' : '') + '">' + esc(o) + '</span>').join('') + '</div><div class="refs">IMMATRICULATION : si le travailleur n’a pas encore été immatriculé, la mention « Immatriculation » devra être portée dans le blanc ci-dessus.</div>' +
-      '<div class="sec">Concernant le travailleur</div>' +
-      '<div class="l">' + L('Nom :', s.nom) + L('Prénoms :', s.prenoms) + L('Sexe :', s.sexe) + '</div>' +
-      '<div class="l">' + L('Né(e) le', frDate(s.naissance)) + L('à', s.lieuNaissance) + L('Pays', s.pays) + L('Nationalité :', s.nationalite) + '</div>' +
-      '<div class="l">' + L('Fils (fille) de (père)', s.pere) + L('et de (mère)', s.mere) + L('Groupe ethnique :', x.ethnie) + '</div>' +
-      '<div class="l">' + L('Adresse (très précise) :', s.adresse) + '</div>' +
-      '<div class="l">' + L('Carte d’identité n°', x.cni) + L('Délivrée à', x.cniLieu) + L('Le', frDate(x.cniDate)) + L('Par :', x.cniPar) + '</div>' +
-      '<div class="l">' + L('N° d’immatriculation à la C.C.P.F. - A.T.', x.ccpf) + L('N° d’immatriculation à l’A.G.R.O.M.', x.agrom) + '</div>' +
-      '<div class="l">' + L('Situation de famille :', s.famille) + L('Nombre d’épouses :', s.epouses || '') + L('Nom des épouses :', s.nomsEpouses) + '</div>' +
-      '<div class="l">' + L('Nombre d’enfants à charge :', s.enfants) + L('Noms des enfants à charge :', s.nomsEnfants) + '</div>' +
-      '<div class="l">' + L('Date d’entrée dans l’établissement :', frDate(s.dateEntree)) + L('N° et date de la déclaration d’embauche effectuée lors de l’engagement :', x.declEmbauche) + '</div>' +
-      '<div class="l">' + L('Profession :', s.profession) + L('Emploi dans l’établissement :', s.emploi) + L('Catégorie :', s.categorie) + '</div>' +
-      '<div class="l">' + L('Convention collective :', s.convention) + L('Éventuellement, date du contrat :', frDate(s.dateContrat)) + '</div>' +
-      '<div class="l">' + L('N° et date du visa d’approbation par l’Inspecteur du Travail et de la Sécurité Sociale :', x.visaApprobation) + '</div>' +
-      '<div class="l">' + L('N° et date du visa d’enregistrement à la section locale de la main-d’œuvre :', x.visaEnregistrement) + '</div>' +
-      '<div class="l">' + L('Raison sociale et adresse précise de l’établissement de l’employeur :', s.raisonSociale + (s.adresseEtablissement ? ', ' + s.adresseEtablissement : '')) + L('Activité de l’établissement :', s.activite) + '</div>' +
-      '<div class="l"><b>Durée du contrat :</b> ' + L('à durée déterminée du', cdd ? frDate(s.dateDebut) : '') + L('au', cdd ? frDate(s.dateFin) : '') + '<span class="' + (!cdd ? 'box' : '') + '">ou à durée indéterminée : CDI</span></div>' +
-      '<div class="l">' + L('Nom et adresse du précédent employeur :', x.precedentEmployeur) + '</div>' +
-      '<div class="l"><b>Si le travailleur bénéficie de l’article 107 du Code du Travail :</b> ' + L('Lieu de résidence habituelle :', x.art107Lieu || s.residence) + L('Date d’entrée au Sénégal :', frDate(x.art107Date)) + '</div>' +
-      '<div class="l"><b>Situation militaire :</b> ' + L('Classe de recrutement :', x.militaireClasse) + L('Service militaire effectué :', x.militaireService) + L('Armée d’appartenance :', x.militaireArmee) + L('Grade dans la réserve :', x.militaireGrade) + '</div>' +
-      '<div class="sec">Dispositions particulières concernant l’engagement</div><div class="l">1) Le salaire du travailleur sera celui fixé pour la catégorie ' + esc(s.categorie) + ' de la ' + esc(s.convention) + ' en fonction d’un horaire de travail hebdomadaire de : ' + hor + '</div>' +
-      '<table class="sal"><tr><td>1) BASE (' + money(s.tauxHoraire) + ' × 173,33 =)</td><td>' + money(s.base) + '</td></tr><tr><td>2) SURSALAIRE</td><td>' + (s.sursalaire ? money(s.sursalaire) : '-') + '</td></tr><tr><td>3) INDEMNITE DE LOGEMENT</td><td>' + (s.logement ? money(s.logement) : '-') + '</td></tr><tr><td>4) ANCIENNETE (' + (s.anciennetePct || 0) + ' %)</td><td>' + (s.ancienneteMontant ? money(s.ancienneteMontant) : '-') + '</td></tr><tr><td>5) SALAIRE BRUT</td><td>' + money(s.brut) + '</td></tr><tr><td>6) PRIME DE TRANSPORT</td><td>' + (s.transport ? money(s.transport) : '-') + '</td></tr><tr><td>7) SALAIRE NET</td><td>' + (view.netCache && view.netCache.id === d.id ? money(view.netCache.net) : '—') + '</td></tr></table>' +
-      '<div class="sign"><div><b>Signature du travailleur</b><br><small>(Précédée de la mention manuscrite pour accord)</small></div><div><b>Signature de l’employeur</b></div></div>' +
-      '<div class="note"><b>P.S. – N.B. :</b> 1) La déclaration de mouvement du travailleur est à établir en trois exemplaires dûment signés par l’employeur et le travailleur. Un exemplaire est remis au travailleur. Le second est conservé par l’employeur. Le troisième est déposé : dans l’intérieur, à la Section locale de la Main-d’œuvre, à l’Inspection Régionale du Travail et de la Sécurité Sociale du ressort ; à Dakar, au Bureau Central du Service de la Main-d’œuvre. 2) L’employeur doit OBLIGATOIREMENT délivrer une ampliation de la déclaration du mouvement au travailleur. 3) Sont provisoirement exemptés de la déclaration de mouvement : les travailleurs journaliers effectivement payés tous les jours ; les manœuvres ordinaires dans toutes les branches d’activité.</div></div>';
-  }
+  /* ───────── Documents (modèles fournis) : aperçu, impression, Word et Excel viennent du même modèle (contracts-export.js) ───────── */
+  const X = () => window.CorintaContractsExport;
 
   /* Aperçu et impression (zone dédiée : aucune fenêtre externe, compatible avec la politique de sécurité du site) */
   function ensureDocUi() {
     if ($('ctPreview')) return;
-    const st = document.createElement('style'); st.id = 'ctDocCss'; st.textContent = DOC_CSS + '#docPrint{display:none}@media print{body.printing-doc > *:not(#docPrint){display:none!important}body.printing-doc #docPrint{display:block!important}body.printing-doc #docPrint .ctdoc{max-width:none;padding:0}}';
+    const st = document.createElement('style'); st.id = 'ctDocCss'; st.textContent = X().CSS + '#docPrint{display:none}@media print{body.printing-doc > *:not(#docPrint){display:none!important}body.printing-doc #docPrint{display:block!important}}';
     document.head.appendChild(st);
     const m = document.createElement('div'); m.id = 'ctPreview'; m.className = 'modal hidden'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', 'Aperçu du document');
-    m.innerHTML = '<div class="modal-card" style="width:min(900px,96vw);max-height:94vh;display:flex;flex-direction:column;gap:10px"><div class="modal-actions" style="justify-content:space-between"><b id="ctPreviewTitle">Aperçu</b><span><button type="button" class="btn primary" data-ctp="print">Imprimer / PDF</button> <button type="button" class="btn" data-ctp="close">Fermer</button></span></div><div id="ctPreviewBody" style="overflow:auto;background:#e8edf5;padding:12px;border-radius:10px"></div></div>';
+    m.innerHTML = '<div class="modal-card" style="width:min(940px,96vw);max-height:94vh;display:flex;flex-direction:column;gap:10px"><div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><b id="ctPreviewTitle">Aperçu</b><span style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn primary" data-ctp="dl" id="ctPreviewDl">Télécharger</button><button type="button" class="btn" data-ctp="print">Imprimer / PDF</button><button type="button" class="btn" data-ctp="close">Fermer</button></span></div><div id="ctPreviewBody" style="overflow:auto;background:#e8edf5;padding:12px;border-radius:10px"></div></div>';
     document.body.appendChild(m);
     const pr = document.createElement('div'); pr.id = 'docPrint'; document.body.appendChild(pr);
-    m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-ctp=close]')) m.classList.add('hidden'); if (e.target.closest('[data-ctp=print]')) printHtml($('ctPreviewBody').innerHTML, $('ctPreviewTitle').textContent); });
+    m.addEventListener('click', (e) => {
+      if (e.target === m || e.target.closest('[data-ctp=close]')) m.classList.add('hidden');
+      if (e.target.closest('[data-ctp=print]')) printHtml($('ctPreviewBody').innerHTML, $('ctPreviewTitle').textContent);
+      if (e.target.closest('[data-ctp=dl]') && view.previewCtx) downloadDoc(view.previewCtx.kind, view.previewCtx.d);
+    });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') m.classList.add('hidden'); });
   }
-  function showDoc(html, title) { ensureDocUi(); $('ctPreviewTitle').textContent = title; $('ctPreviewBody').innerHTML = html; $('ctPreview').classList.remove('hidden'); }
+  function showDoc(html, title, ctx) {
+    ensureDocUi(); view.previewCtx = ctx || null;
+    $('ctPreviewTitle').textContent = title; $('ctPreviewBody').innerHTML = html; $('ctPreview').classList.remove('hidden');
+    const dl = $('ctPreviewDl'); dl.hidden = !ctx; if (ctx) dl.textContent = ctx.kind === 'dmt' ? 'Télécharger Excel (.xlsx)' : 'Télécharger Word (.docx)';
+  }
   function printHtml(html, title) {
     ensureDocUi(); const pr = $('docPrint'), t = document.title; pr.innerHTML = html; document.title = title;
     const done = () => { window.removeEventListener('afterprint', done); document.body.classList.remove('printing-doc'); document.title = t; pr.innerHTML = ''; };
     window.addEventListener('afterprint', done); setTimeout(() => { document.title = t; }, 60000);
     document.body.classList.add('printing-doc'); setTimeout(() => window.print(), 50);
   }
+  const netOf = (d) => (estimateNet(d) || {}).net || 0;
   function docFor(kind, d) {
-    const co = company(), name = (K.fullName(d.worker) || 'travailleur').replace(/[^\p{L}\p{N}]+/gu, '-');
-    if (kind === 'dmt') { view.netCache = { id: d.id, net: (estimateNet(d) || {}).net || 0 }; return { html: dmtDoc(d, co), title: 'DMT-' + name }; }
-    return { html: contractDoc(d), title: 'Contrat-' + (d.number || 'brouillon') + '-' + name };
+    const co = company(), name = (K.fullName(d.worker) || 'travailleur').replace(/[^\p{L}\p{N}]+/gu, '-'), x = X();
+    if (kind === 'dmt') return { html: x.dmtHtml(x.dmtData(K.dmtView(d, co), netOf(d))), title: 'DMT-' + name };
+    return { html: x.modelHtml(x.contractModel(d)), title: 'Contrat-' + (d.number || 'brouillon') + '-' + name };
+  }
+  function checked(d) {
+    const v = K.validate(d);
+    if (!v.valid) { setMsg(v.errors[0], true); toast(v.errors[0]); if (WS.state.module === 'contract-new') render(); return false; }
+    return true;
   }
   function openDoc(kind, d, print) {
-    const v = K.validate(d);
-    if (!v.valid) { setMsg(v.errors[0], true); toast(v.errors[0]); if (WS.state.module === 'contract-new') render(); return; }
-    const x = docFor(kind, d); if (print) printHtml(x.html, x.title); else showDoc(x.html, (kind === 'dmt' ? 'DMT · ' : 'Contrat · ') + K.fullName(d.worker));
+    if (!checked(d)) return;
+    const x = docFor(kind, d); if (print) printHtml(x.html, x.title); else showDoc(x.html, (kind === 'dmt' ? 'DMT · ' : 'Contrat · ') + K.fullName(d.worker), { kind, d });
+  }
+  function saveBlob(blob, name) {
+    const a = document.createElement('a'), url = URL.createObjectURL(blob); a.href = url; a.download = name; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  /** Contrat → .docx (Word) ; DMT → .xlsx (Excel). Même modèle de données que l'aperçu. */
+  function downloadDoc(kind, d) {
+    if (!checked(d)) return;
+    try {
+      const x = X(), name = x.fileName(kind, d);
+      const bytes = kind === 'dmt' ? x.dmtXlsx(x.dmtData(K.dmtView(d, company()), netOf(d))) : x.modelDocx(x.contractModel(d), { title: 'Contrat de travail ' + K.fullName(d.worker) });
+      saveBlob(new Blob([bytes], { type: x.MIME[kind === 'dmt' ? 'xlsx' : 'docx'] }), name); toast(name + ' téléchargé');
+    } catch (err) { console.error('Export du document', err); toast('Export impossible : ' + (err && err.message ? err.message : err)); }
   }
 
   /* ───────── Formulaires ───────── */
@@ -347,8 +299,8 @@
       '<div class="ws-field"><label for="ctStatusSel">Statut</label><select id="ctStatusSel" data-ct-f="status">' + K.STATUS.map((s) => '<option' + (d.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div></div></div>' +
       '<div class="ct-tabs" role="tablist"><button type="button" role="tab" aria-selected="' + (view.tab === 'contract') + '" data-ct="tab:contract">1. Contrat de travail</button><button type="button" role="tab" aria-selected="' + (view.tab === 'dmt') + '" data-ct="tab:dmt">2. DMT' + (dmtOk ? ' ✔' : '') + '</button><span id="ctStatus" class="cp-sub" role="status">' + esc(view.msg) + '</span></div>' +
       '<div class="ct-bar">' + (view.tab === 'contract'
-        ? '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:contract">' + icon('eye') + 'Aperçu du contrat</button><button type="button" class="cp-btn" data-ct="print:contract">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="tab:dmt">Créer la DMT →</button><button type="button" class="cp-btn" data-ct="bulletin">' + icon('file2') + 'Préparer le bulletin de paie</button>'
-        : '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:dmt">' + icon('eye') + 'Aperçu de la DMT</button><button type="button" class="cp-btn" data-ct="print:dmt">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="dmt-done">' + (dmtOk ? 'DMT établie ✔ (rouvrir)' : 'Marquer la DMT comme établie') + '</button><button type="button" class="cp-btn" data-ct="tab:contract">← Retour au contrat</button>') + '</div>' +
+        ? '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:contract">' + icon('eye') + 'Aperçu du contrat</button><button type="button" class="cp-btn" data-ct="download:contract">' + icon('download') + 'Télécharger Word (.docx)</button><button type="button" class="cp-btn" data-ct="print:contract">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="tab:dmt">Créer la DMT →</button><button type="button" class="cp-btn" data-ct="bulletin">' + icon('file2') + 'Préparer le bulletin de paie</button>'
+        : '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:dmt">' + icon('eye') + 'Aperçu de la DMT</button><button type="button" class="cp-btn" data-ct="download:dmt">' + icon('download') + 'Télécharger Excel (.xlsx)</button><button type="button" class="cp-btn" data-ct="print:dmt">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="dmt-done">' + (dmtOk ? 'DMT établie ✔ (rouvrir)' : 'Marquer la DMT comme établie') + '</button><button type="button" class="cp-btn" data-ct="tab:contract">← Retour au contrat</button>') + '</div>' +
       (view.tab === 'contract' ? importHTML() : '') + '<div id="ctIssues">' + issuesHTML(d) + '</div>' + (view.tab === 'contract' ? contractTab(d) : dmtTab(d));
   }
 
@@ -366,7 +318,7 @@
       const dm = DMT_LABEL(x), te = K.trialEnd(x), end = K.isCdd(x.job.type) ? (x.job.type === 'CDD_PROJET' ? 'Fin du projet' + (x.job.projetNom ? ' « ' + x.job.projetNom + ' »' : '') + (x.job.dateFin ? ' : ' + frDate(x.job.dateFin) : '') : frDate(x.job.dateFin)) : (te ? 'Essai jusqu’au ' + frDate(te) : '—');
       return '<tr><td class="nw">' + esc(x.number || '—') + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(K.TYPE_SHORT[x.job.type] || x.job.type) + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
         '<td><select class="ct-mini" aria-label="Statut du contrat de ' + esc(K.fullName(x.worker)) + '" data-ct-status="' + esc(x.id) + '">' + K.STATUS.map((s) => '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></td><td><span class="cp-badge ' + dm[1] + '">' + dm[0] + '</span></td>' +
-        '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
+        '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('dl-contract', 'download', 'Télécharger le contrat (Word)', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
     }).join('');
     return '<div class="ws-page-head"><div><h1>Gestion des contrats</h1><p>' + esc(c.name) + ' · ' + all.length + ' contrat' + (all.length > 1 ? 's' : '') + '</p></div><div class="ws-tools"><button type="button" class="cp-btn primary" data-ct="new">' + icon('plus') + 'Nouveau contrat</button></div></div>' +
       '<div class="ws-sums">' + kpi('Contrats', String(all.length)) + kpi('En cours', String(all.filter((x) => x.status === 'en cours').length)) + kpi('Brouillons', String(all.filter((x) => x.status === 'brouillon').length)) + kpi('DMT à établir', String(all.filter((x) => x.status !== 'terminé' && !(x.dmt && x.dmt.status === 'établie')).length)) + '</div>' +
@@ -389,6 +341,7 @@
     if (a === 'tab') { commit(); view.tab = arg; render(); setTimeout(updateDerived, 30); }
     else if (a === 'save') { if (commit()) { toast('Contrat enregistré'); render(); } else toast(view.msg); }
     else if (a === 'preview' || a === 'print') { commit(); openDoc(arg, view.draft, a === 'print'); }
+    else if (a === 'download') { commit(); downloadDoc(arg, view.draft); }
     else if (a === 'dmt-done') { const d = view.draft; d.dmt = Object.assign({}, d.dmt || {}); d.dmt.status = d.dmt.status === 'établie' ? 'brouillon' : 'établie'; commit(); toast(d.dmt.status === 'établie' ? 'DMT marquée comme établie' : 'DMT rouverte'); render(); }
     else if (a === 'bulletin') prepareBulletin();
     else if (a === 'imp-pick') { const f = $('ctFile'); if (f) f.click(); }
@@ -398,6 +351,7 @@
     else if (a === 'new') newDraft();
     else if (a === 'edit') openDraft(arg, 'contract');
     else if (a === 'dmt') openDraft(arg, 'dmt');
+    else if (a === 'dl-contract') { const x = list.find((k) => k.id === arg); if (x) downloadDoc('contract', K.normalize(clone(x), c)); }
     else if (a === 'print-contract') { const x = list.find((k) => k.id === arg); if (x) openDoc('contract', K.normalize(clone(x), c), true); }
     else if (a === 'dup') { const x = list.find((k) => k.id === arg); if (x) { const n = K.normalize(clone(x), c); Object.assign(n, { id: K.blankContract(c, '').id, number: '', status: 'brouillon', dmt: null, createdAt: todayISO() }); Object.assign(n.worker, { nom: '', prenoms: '', naissance: '', lieuNaissance: '', pere: '', mere: '', domicile: '', nomsEpouses: '', nomsEnfants: '' }); n.job.dateEngagement = ''; n.job.dateContrat = ''; n.job.dateFin = ''; view.draft = n; view.tab = 'contract'; view.msg = 'Modèle dupliqué : renseignez le nouveau travailleur.'; WS.go('contract-new'); } }
     else if (a === 'del') { const x = list.find((k) => k.id === arg); if (x && confirm('Supprimer définitivement le contrat ' + (x.number || '') + ' de ' + K.fullName(x.worker) + ' ?')) { c.contracts = list.filter((k) => k.id !== arg); persistOrg(); if (view.draft && view.draft.id === arg) view.draft = null; toast('Contrat supprimé'); render(); } }
