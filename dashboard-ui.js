@@ -211,6 +211,7 @@
     document.title = 'bulletin-' + slug(x.name) + '-' + (x.period || 'periode');
     const done = () => { window.removeEventListener('afterprint', done); document.title = title; if (back && ws) ws.open(back.id, back.module); };
     window.addEventListener('afterprint', done);
+    setTimeout(() => { document.title = title; }, 60000);   // filet de sécurité si le navigateur ne signale pas la fin de l'impression
     setTimeout(() => window.print(), 350);
   }
   function chooseDownload(i) {

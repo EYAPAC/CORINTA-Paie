@@ -49,6 +49,10 @@ Le menu principal est rétractable (bouton en haut du menu ou Ctrl+B) : il se r�
 
 Dans un dossier d'entreprise, **Bulletins de paie**, **Déclarations sociales et fiscales**, **Charges et cotisations** et **Documents › Archives** sont classés Année › Mois (fil d'Ariane cliquable). Les dossiers sont calculés à partir des bulletins enregistrés, sans copie de données. Le dernier mois traité s'ouvre par défaut ; les mois sans bulletin ne sont visibles que pour l'année en cours ; « Vue à plat » affiche l'ancienne vue (tous les bulletins, cumul). Un dossier de mois « Déclarations » détaille IPRES, CSS et impôts (montant, échéance légale, état, « Marquer fait »).
 
+## Synchronisation des paramètres et conformité
+
+Chaque modification dans Paramétrage ou dans « Paramètres de l'entreprise » (parts fiscales, transport, IPM, sursalaire, congés, heures supplémentaires, taux, barèmes) est appliquée immédiatement (`settings-sync.js`) : enregistrée, répercutée sur le bulletin affiché et, si une règle de calcul change, sur tous les bulletins archivés. Les barèmes légaux restent verrouillés hors « mode dérogatoire » ; `tests/legal-conformity.test.mjs` fige les valeurs vérifiées (CGI art. 173, 174, 182, 267, 276, 282 ; CLEISS au 01/01/2026 : IPRES, RCC, CSS). Vérification du 23/10/2026 : seul le nombre de parts du marié était erroné (1 au lieu de 1,5, art. 174-2).
+
 ## Mise à jour automatique des bulletins
 
 Chaque bulletin enregistré porte l'empreinte des règles qui l'ont calculé (`rulesRev` : barèmes légaux, taux et plafonds, règles familiales, congés, version des formules). Au démarrage, après l'enregistrement des paramètres ou d'une importation, `auto-recalc.js` recalcule seul tous les bulletins dont l'empreinte n'est plus celle des règles en vigueur, à partir de leurs propres saisies. Le statut est conservé ; les bulletins déjà payés dont le net change sont signalés ; une sauvegarde de l'ancien historique et un journal (Documents › Journal des mises à jour automatiques) permettent de contrôler et d'annuler. **À chaque modification des formules de `legal-rules.js`, `leave-rules.js` ou du moteur de l'index, incrémenter `ENGINE_REV` dans `auto-recalc.js`** : les valeurs des barèmes, elles, sont détectées automatiquement.
@@ -71,7 +75,7 @@ Ouvrir un dossier (« Ouvrir » ou clic dans la liste) affiche un espace dédié
 Vérifiées sur le CGI du Sénégal annoté (octobre 2025) et le Code du travail :
 
 - **IR** (CGI art. 173) : barème progressif 0/20/30/35/37/40 % jusqu’à 50 M FCFA puis 43 %, base arrondie au millier inférieur ; abattement de 30 % plafonné à 900 000 FCFA/an, représentatif des cotisations de retraite et des frais (pas de déduction IPRES séparée) ; l’impôt ne peut excéder 43 % du revenu imposable.
-- **Parts et réduction familiale** (art. 174) : célibataire 1 part, marié 1 part, +0,5 part si un seul conjoint a des revenus, +0,5 part par enfant, 5 parts maximum ; réduction de 10 % à 45 % avec minimum et maximum selon le nombre de parts.
+- **Parts et réduction familiale** (art. 174) : célibataire 1 part, marié 1,5 part (tableau de l'art. 174-2), +0,5 part par enfant, +0,5 part si un seul conjoint a des revenus (art. 174-3), +0,5 part par enfant, 5 parts maximum ; réduction de 10 % à 45 % avec minimum et maximum selon le nombre de parts.
 - **TRIMF** (art. 275 à 282) : 6 tranches sur le revenu brut annuel (traitements, indemnités et avantages ; remboursements de frais justifiés exclus, car sans caractère de salaire) ; le salarié paie aussi pour un conjoint sans revenus (art. 276).
 - **CFCE** (art. 265 à 269) : 3 % du brut, remboursements de frais et prestations familiales exclus ; versée avec l'IR.
 - **CSS** (art. 73 et 75) : prestations familiales 7 % et accident du travail 1, 3 ou 5 % selon l'activité, plafond 63 000 FCFA, à la charge exclusive de l'employeur.

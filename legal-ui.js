@@ -27,7 +27,7 @@
     b.id = 'legalBanner'; b.className = 'card wide';
     b.setAttribute('role', 'region'); b.setAttribute('aria-label', 'Conformité légale des barèmes');
     const cfg = $('config'); cfg.insertBefore(b, cfg.firstChild);
-    b.addEventListener('click', (e) => {
+    cfg.addEventListener('click', (e) => {   // le bouton du bandeau et celui de la carte « règles familiales » partagent ce gestionnaire
       const t = e.target.closest('[data-legal]'); if (!t) return;
       if (t.dataset.legal === 'override') {
         if (!confirm('Mode dérogatoire : les barèmes IR, TRIMF et IPRES pourront être modifiés. Chaque bulletin indiquera que des barèmes personnalisés sont appliqués. Utilisez-le uniquement pour un arrêté ou une convention en vigueur. Continuer ?')) return;
@@ -51,7 +51,7 @@
       b.innerHTML = '<h2>⚠ Mode dérogatoire actif</h2><p class="notice">Des barèmes personnalisés sont appliqués : ils peuvent ne pas être conformes à la loi. Chaque bulletin le mentionne. Revenez aux barèmes légaux dès que possible.</p><button type="button" class="btn primary" data-legal="reset">Rétablir les barèmes légaux</button>';
     } else {
       b.innerHTML = '<h2>🔒 Barèmes légaux verrouillés</h2>' + fixNote +
-        '<p class="muted">Conformes à : ' + safe(lg.version) + '.</p><ul class="muted" style="margin:6px 0 10px;padding-left:18px"><li>IR : ' + safe(lg.ir.article) + ' (abattement 30 % plafonné à 900 000, réduction pour charges de famille, plafond 43 %)</li><li>TRIMF : ' + safe(lg.trimf.article) + ' (6 tranches, doublée pour un conjoint sans revenus)</li><li>IPRES : régime général 5,6 % / 8,4 % jusqu’à 432 000 ; régime complémentaire 2,4 % / 3,6 % jusqu’à 1 296 000 pour tout salaire au-dessus du plafond (CSS art. 243 et 245)</li><li>CSS : prestations familiales 7 % et accident du travail 1, 3 ou 5 % (plafond 63 000, charge de l’employeur) · CFCE 3 % (CGI art. 267)</li></ul>' +
+        '<p class="muted">Conformes à : ' + safe(lg.version) + '.</p><ul class="muted" style="margin:6px 0 10px;padding-left:18px"><li>IR : ' + safe(lg.ir.article) + ' (abattement 30 % plafonné à 900 000, réduction pour charges de famille, plafond 43 %)</li><li>Parts IR (art. 174-2 à 174-4) : célibataire 1 · marié 1,5 · +0,5 par enfant à charge · +0,5 lorsqu’un seul conjoint a des revenus · 5 parts au maximum</li><li>TRIMF : ' + safe(lg.trimf.article) + ' (6 tranches, doublée pour un conjoint sans revenus)</li><li>IPRES : régime général 5,6 % / 8,4 % jusqu’à 432 000 ; régime complémentaire 2,4 % / 3,6 % jusqu’à 1 296 000 pour tout salaire au-dessus du plafond (CSS art. 243 et 245)</li><li>CSS : prestations familiales 7 % et accident du travail 1, 3 ou 5 % (plafond 63 000, charge de l’employeur) · CFCE 3 % (CGI art. 267)</li></ul>' +
         '<button type="button" class="btn" data-legal="override">Activer le mode dérogatoire…</button>';
     }
     window.LEGAL_FIXES = []; // affiché une seule fois
@@ -60,6 +60,11 @@
   function applyLock() {
     renderBanner();
     const locked = !S.legalOverride;
+    let fam = $('familyLockNote');
+    if (!fam && $('irFamilyRuleSummary')) { fam = document.createElement('p'); fam.id = 'familyLockNote'; fam.className = 'muted'; $('irFamilyRuleSummary').after(fam); }
+    if (fam) fam.innerHTML = locked
+      ? '🔒 Règles familiales légales (CGI art. 174) : célibataire 1 · marié 1,5 · +0,5 par enfant · +0,5 si un seul conjoint a des revenus · 5 parts au maximum. <button type="button" class="btn" data-legal="override">Corriger les parts…</button>'
+      : '⚠ Mode dérogatoire : vos valeurs s’appliquent immédiatement au bulletin et aux bulletins archivés. <button type="button" class="btn" data-legal="reset">Rétablir les parts légales</button>';
     LOCKED.forEach((sel) => document.querySelectorAll(sel).forEach((el) => {
       // le taux AT reste réglable : il dépend de l'activité de l'employeur (1, 3 ou 5 %)
       el.disabled = locked; el.title = locked ? 'Barème légal verrouillé (mode dérogatoire requis)' : '';

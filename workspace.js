@@ -335,9 +335,20 @@
       '<article class="cp-card ws-form"><h2>Identité du dossier</h2><div class="ws-info"><div><span>Nom du dossier</span><b>' + esc(c.name) + '</b></div><div><span>Identifiant</span><b>' + esc(c.id) + '</b></div><div><span>Employeur sur les bulletins</span><b>' + esc(c.employer || c.name) + '</b></div></div></article>' +
       '<article class="cp-card ws-form"><h2>Nom de l’employeur sur le bulletin</h2><div class="row"><div class="ws-field"><label for="wsEmployer">Nom légal de l’employeur</label><input id="wsEmployer" value="' + esc(c.employer || '') + '" placeholder="Entreprise SARL"></div><button type="button" class="cp-btn primary" data-act="ws-save-employer">Enregistrer</button></div><p class="cp-sub">Ce nom figure sur les bulletins et les exports de ce dossier.</p></article>';
   }
+  /* Paramètres de paie : parts fiscales (IR) et valeurs par défaut — liés au Paramétrage, appliqués en direct au bulletin et aux archives. */
+  function payrollParamsHTML() {
+    const lock = !S.legalOverride, f = (cfg, label, val, step, hint) => '<div class="ws-field"><label for="wsCfg_' + cfg + '">' + esc(label) + '</label><input id="wsCfg_' + cfg + '" data-cfg="' + cfg + '" type="number" min="0" step="' + (step || 'any') + '" value="' + esc(val) + '"' + (lock && hint === 'legal' ? ' disabled title="Règle légale verrouillée (CGI art. 174) : mode dérogatoire requis"' : '') + '></div>';
+    const pc = (v) => String(v).replace('.', ',');
+    return '<article class="cp-card ws-form"><h2>Parts fiscales (IR)</h2>' +
+      '<p class="cp-sub">CGI art. 174 : célibataire ' + pc(S.single) + ' · marié(e) ' + pc(S.married) + ' · ' + pc(S.child) + ' par enfant à charge · +' + pc(S.irSpouseNoIncomeBonus) + ' lorsqu’un seul conjoint a des revenus · ' + pc(S.irMaxParts) + ' parts au maximum.</p>' +
+      '<div class="ws-grid-fields">' + f('irSingleParts', 'Célibataire, divorcé(e), veuf(ve) sans enfant', S.single, '0.5', 'legal') + f('irMarriedParts', 'Marié(e)', S.married, '0.5', 'legal') + f('irChildParts', 'Par enfant à charge', S.child, '0.5', 'legal') + f('irSpouseNoIncomeBonus', 'Majoration si un seul conjoint a des revenus', S.irSpouseNoIncomeBonus, '0.5', 'legal') + f('irMaxParts', 'Plafond de parts', S.irMaxParts, '0.5', 'legal') + '</div>' +
+      '<div class="row">' + (lock ? '<span class="cp-sub">🔒 Règles légales verrouillées.</span><button type="button" class="cp-btn sm" data-act="ws-override">Corriger les parts…</button>' : '<span class="cp-sub">⚠ Mode dérogatoire actif : vos valeurs s’appliquent immédiatement.</span><button type="button" class="cp-btn sm" data-act="ws-legal-reset">Rétablir les parts légales</button>') + '</div></article>' +
+      '<article class="cp-card ws-form"><h2>Paramètres de paie</h2><p class="cp-sub">Valeurs par défaut reprises dans chaque nouveau bulletin ; toute modification est appliquée aussitôt au bulletin affiché.</p>' +
+      '<div class="ws-grid-fields">' + f('defaultTransport', 'Indemnité de transport par défaut (FCFA)', S.transport, '1') + f('defaultIpm', 'IPM par défaut (FCFA)', S.ipm, '1') + f('defaultExtra', 'Sursalaire par défaut (FCFA)', S.defaultExtra || 0, '1') + f('leaveAccrual', 'Congés acquis par mois (jours ouvrables, minimum 2)', S.leaveAccrual, '0.5') + f('otFirstRate', 'Majoration heures supplémentaires · 1er palier (%)', S.overtimeFirstRate, '1') + f('otNextRate', 'Majoration heures supplémentaires · au-delà (%)', S.overtimeNextRate, '1') + '</div></article>';
+  }
   function paramsHTML(c, m) {
     const n = m.employeeCount, mode = n >= 20 ? 'mensuel' : 'trimestriel';
-    return '<div class="ws-page-head"><div><h1>Paramètres de l’entreprise</h1><p>Règles appliquées au dossier ' + esc(c.name) + '</p></div></div>' +
+    return '<div class="ws-page-head"><div><h1>Paramètres de l’entreprise</h1><p>Règles appliquées au dossier ' + esc(c.name) + '</p></div><span id="wsParamStatus" class="cp-sub" role="status">' + esc((document.getElementById('cfgSync') || {}).textContent || '') + '</span></div>' + payrollParamsHTML() +
       '<article class="cp-card ws-form"><h2>Rythme des déclarations</h2><div class="ws-info"><div><span>IPRES et CSS</span><b>Versement ' + mode + ' (' + n + ' salarié' + (n > 1 ? 's' : '') + ', CSS art. 93)</b></div><div><span>Impôts retenus (IR, TRIMF) et CFCE</span><b>' + (S.taxRemittance === 'quarterly' ? 'Trimestriel' : 'Mensuel') + ' (CGI art. 185)</b></div></div><div class="row"><button type="button" class="cp-btn primary" data-act="view:config">' + icon('gear') + 'Ouvrir les paramètres de paie</button></div><p class="cp-sub">Barèmes, taux et règles de calcul sont communs à toutes les entreprises ; ils se modifient dans Paramètres de paie.</p></article>' +
       '<article class="cp-card ws-form ws-danger"><h2>Supprimer ce dossier</h2><p class="cp-sub">Le dossier, ses ' + m.employeeCount + ' salarié(s) et tous ses bulletins seront supprimés définitivement. Une confirmation vous sera demandée.</p><div class="row"><button type="button" class="cp-btn" style="color:#b3261e;border-color:#f3b6b0" data-act="ws-delete">Supprimer le dossier…</button></div></article>';
   }
@@ -404,6 +415,8 @@
     if (a === 'ws-general') { if (window.CorintaShell) window.CorintaShell.go('dashboard'); return; }
     if (a.indexOf('module:') === 0) { go(a.slice(7)); return; }
     if (a.indexOf('panel:') === 0) { go(a.slice(6)); return; }
+    if (a === 'ws-override') { const b = document.querySelector('#legalBanner [data-legal=override]'); if (b) b.click(); setTimeout(render, 50); return; }
+    if (a === 'ws-legal-reset') { const b = document.querySelector('#legalBanner [data-legal=reset]'); if (b) b.click(); setTimeout(render, 50); return; }
     if (a === 'recalc-log') { if (window.CorintaAutoRecalc) window.CorintaAutoRecalc.showLog(0); return; }
     if (a === 'ws-export') { exportPayslips(); return; }
     if (a === 'ws-bulk') { bulkStatus(); return; }
@@ -446,6 +459,7 @@
     });
     root.addEventListener('change', (e) => {
       const t = e.target;
+      if (t.dataset && t.dataset.cfg) { const c = $(t.dataset.cfg); if (c) { c.value = t.value; if (window.CorintaSettingsSync) window.CorintaSettingsSync.apply(); render(); } return; }
       if (t.matches('select[data-act="status"]')) { UI.setStatus(Number(t.dataset.i), t.value); return; }
       if (t.id === 'wsPeriod' && PERIOD_RE.test(t.value)) { st.period = t.value; render(); return; }
       if (t.id === 'wsFrom' || t.id === 'wsTo') { st.from = $('wsFrom').value; st.to = $('wsTo').value; if (st.from && st.to) render(); return; }
@@ -455,6 +469,7 @@
       if (t.id === 'wsFP') { st.fPeriod = t.value; render(); return; }
       if (t.id === 'wsFS') { st.fStatus = t.value; render(); }
     });
+    root.addEventListener('input', (e) => { if (e.target.dataset && e.target.dataset.cfg) { const c = $(e.target.dataset.cfg); if (c) { c.value = e.target.value; window.CorintaSettingsSync && window.CorintaSettingsSync.queue(600); } } });
     root.addEventListener('input', (e) => { if (e.target.id === 'wsPQ') { st.sq = e.target.value; render(); } if (e.target.id === 'wsSearch') search(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st.open) { $('wsMenu').classList.add('hidden'); $('wsResults').classList.add('hidden'); } });
   }

@@ -205,3 +205,7 @@
 .ws-obl-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; } .ws-obl-head h2 { margin: 0; font-size: 18px; }
 .ws-obl-amount { font-size: 22px; font-weight: 800; display: grid; } .ws-obl-amount small { font-size: 11.5px; font-weight: 500; color: var(--cp-muted); }
 .ws-done { margin: 0; display: flex; gap: 6px; align-items: center; color: #11794d; font-weight: 600; font-size: 13px; } .ws-done svg { width: 16px; height: 16px; }
+
+/* ───────── Paramètres de paie du dossier ───────── */
+.ws-grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 10px 0; }
+.ws-grid-fields .ws-field input:disabled { background: #f3f6fc; color: #5a6a86; cursor: not-allowed; }

@@ -74,10 +74,12 @@ test('IR : le détail par tranche additionne exactement l’impôt brut', () => 
 });
 
 test('parts (CGI art. 174-2, 174-3, 174-4)', () => {
-  assert.equal(L.partsFor({ married: false, children: 0 }), 1);
-  assert.equal(L.partsFor({ married: true, children: 0, spouseNoIncome: false }), 1, 'marié, deux revenus : 1 part');
-  assert.equal(L.partsFor({ married: true, children: 0, spouseNoIncome: true }), 1.5, 'un seul conjoint avec revenus : +0,5');
-  assert.equal(L.partsFor({ married: true, children: 1, spouseNoIncome: true }), 2);
+  assert.equal(L.partsFor({ married: false, children: 0 }), 1, 'célibataire : 1 part');
+  assert.equal(L.partsFor({ married: true, children: 0, spouseNoIncome: false }), 1.5, 'marié, deux revenus : 1,5 part (tableau 174-2)');
+  assert.equal(L.partsFor({ married: true, children: 0, spouseNoIncome: true }), 2, 'marié, un seul conjoint avec revenus : 1,5 + 0,5 (174-3)');
+  assert.equal(L.partsFor({ married: true, children: 1, spouseNoIncome: false }), 2, 'marié, 1 enfant, deux revenus');
+  assert.equal(L.partsFor({ married: true, children: 1, spouseNoIncome: true }), 2.5);
+  assert.equal(L.partsFor({ married: true, children: 2, spouseNoIncome: true }), 3, 'marié, 2 enfants, un seul revenu : 3 parts');
   assert.equal(L.partsFor({ married: false, children: 1 }), 1.5);
   assert.equal(L.partsFor({ married: false, children: 3 }), 2.5);
   assert.equal(L.partsFor({ married: true, children: 12, spouseNoIncome: true }), 5, 'plafond de 5 parts');
@@ -147,11 +149,11 @@ test('conformité : les réglages légaux ne présentent aucun écart', () => {
 
 test('conformité : tout écart est détecté puis corrigé hors mode dérogatoire', () => {
   const S = L.legalSettings();
-  S.tax[1].rate = 18; S.trimfBrackets[0].amount = 1000; S.married = 1.5; S.rates[0].rate = 6; S.rates[6].cap = 1000000;
+  S.tax[1].rate = 18; S.trimfBrackets[0].amount = 1000; S.married = 1; S.rates[0].rate = 6; S.rates[6].cap = 1000000;
   const gaps = L.checkSettings(S, true);
   assert.ok(gaps.length >= 5, 'écarts détectés : ' + gaps.length);
   assert.deepEqual(L.checkSettings(S, false), [], 'après correction, plus aucun écart');
-  assert.equal(S.tax[1].rate, 20); assert.equal(S.trimfBrackets[0].amount, 900); assert.equal(S.married, 1); assert.equal(S.rates[0].rate, 5.6);
+  assert.equal(S.tax[1].rate, 20); assert.equal(S.trimfBrackets[0].amount, 900); assert.equal(S.married, 1.5); assert.equal(S.rates[0].rate, 5.6);
 });
 
 test('conformité : le taux AT propre à l’employeur (1, 3 ou 5 %) est conservé, tout autre taux est rejeté', () => {

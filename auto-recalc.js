@@ -16,7 +16,7 @@
   'use strict';
   /* À incrémenter à chaque modification des FORMULES du moteur (parts, IR, TRIMF, IPRES, CSS, congés). Les valeurs des barèmes, elles,
      sont détectées toutes seules : toute modification d'un taux, d'un plafond ou d'une tranche change l'empreinte. */
-  const ENGINE_REV = 'r5';
+  const ENGINE_REV = 'r6';
   const LOG_KEY = 'paieRecalcLog', BACKUP_KEY = 'paieHistoryBackup', SKIP_KEY = 'paieRecalcSkip';
   const L = window.CorintaLegal, LV = window.CorintaLeave, D = window.CorintaDash;
   if (!L || typeof restorePayrollFields !== 'function' || typeof readHistoryStore !== 'function') { console.error('auto-recalc.js : moteur de paie introuvable'); return; }
@@ -124,6 +124,11 @@
     const base = window[name]; if (typeof base !== 'function') return;
     window[name] = function () { const r = base.apply(this, arguments); schedule('paramètres modifiés'); return r; };
   });
+  /* Toute écriture des paramètres (bandeau dérogatoire, rétablissement des barèmes, synchronisation directe…) relance la vérification. */
+  if (typeof writeStore === 'function') {
+    const baseWrite = writeStore;
+    window.writeStore = function (key) { const r = baseWrite.apply(this, arguments); if (key === 'paieSettings') schedule('paramètres modifiés'); return r; };
+  }
   window.addEventListener('storage', (e) => { if (e.key === 'paieSettings' || e.key === 'paieHistory') schedule('données modifiées'); });
   window.CorintaAutoRecalc = { run: (r) => run(r || 'vérification manuelle'), fingerprint, showLog, schedule };
   schedule('mise à jour du logiciel ou des règles');

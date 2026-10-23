@@ -36,8 +36,10 @@
         { parts: 2.5, pct: 20, min: 300000, max: 1100000 }, { parts: 3, pct: 25, min: 400000, max: 1650000 }, { parts: 3.5, pct: 30, min: 500000, max: 2030000 },
         { parts: 4, pct: 35, min: 600000, max: 2490000 }, { parts: 4.5, pct: 40, min: 700000, max: 2755000 }, { parts: 5, pct: 45, min: 800000, max: 3180000 }
       ],
-      /* nombre de parts (art. 174-2, 174-3, 174-4) */
-      baseSingle: 1, baseMarried: 1, perChild: 0.5, spouseNoIncomeBonus: 0.5, maxParts: 5
+      /* nombre de parts (art. 174-2 : tableau ; 174-3 ; 174-4) :
+         célibataire, divorcé ou veuf sans enfant = 1 ; marié = 1,5 ; chaque enfant à charge = +0,5 ;
+         un seul conjoint avec revenus imposables = +0,5 (174-3) ; plafond 5 parts (174-4). */
+      baseSingle: 1, baseMarried: 1.5, perChild: 0.5, spouseNoIncomeBonus: 0.5, maxParts: 5
     },
     trimf: {
       article: 'CGI art. 275-282',
