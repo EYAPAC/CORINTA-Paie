@@ -209,3 +209,5 @@
 /* ───────── Paramètres de paie du dossier ───────── */
 .ws-grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 10px 0; }
 .ws-grid-fields .ws-field input:disabled { background: #f3f6fc; color: #5a6a86; cursor: not-allowed; }
+
+.cp-warn { color: #b3261e; cursor: help; font-weight: 700; }

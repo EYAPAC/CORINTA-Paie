@@ -224,7 +224,7 @@
 
   /* ── Documents : exports + archives des bulletins par année et mois ── */
   function documentsHTML(c, recs) {
-    const t = [['export-employees', 'users', 'Liste des salariés (CSV)', 'Nom, matricule, téléphone et emploi'], ['export-report', 'file', 'Liste des bulletins (CSV)', 'Net, masse brute, charges fiscales et sociales'], ['backup', 'download', 'Sauvegarde complète (JSON)', 'Toutes les entreprises, paramètres et bulletins'], ['import-backup', 'upload', 'Importer une sauvegarde', 'Restaure un fichier de sauvegarde JSON'], ['view:history', 'archive', 'Recalculer les bulletins archivés', 'Recalcul groupé selon les règles légales en vigueur'], ['recalc-log', 'clock', 'Journal des mises à jour automatiques', 'Bulletins recalculés quand une règle change · annulation possible']];
+    const t = [['export-employees', 'users', 'Liste des salariés (CSV)', 'Nom, matricule, téléphone et emploi'], ['export-report', 'file', 'Liste des bulletins (CSV)', 'Net, masse brute, charges fiscales et sociales'], ['backup', 'download', 'Sauvegarde complète (JSON)', 'Toutes les entreprises, paramètres et bulletins'], ['import-backup', 'upload', 'Importer une sauvegarde', 'Restaure un fichier de sauvegarde JSON'], ['view:history', 'archive', 'Recalculer les bulletins archivés', 'Recalcul groupé selon les règles légales en vigueur'], ['integrity', 'check', 'Contrôle des bulletins', 'Détecte les bulletins sans salaire, sans retenues ou incohérents'], ['recalc-log', 'clock', 'Journal des mises à jour automatiques', 'Bulletins recalculés quand une règle change · annulation possible']];
     const lv = level('documents', recs), per = byPeriod(recs);
     const exports = '<h2 class="ws-h2">Exports et sauvegarde</h2><div class="ws-cards3">' + t.map(([a, i, l, d]) => '<button type="button" class="cp-card ws-doc" data-act="' + a + '"><span class="ico">' + icon(i) + '</span><div><b>' + esc(l) + '</b><span>' + esc(d) + '</span></div></button>').join('') + '</div>';
     let arch;
@@ -251,6 +251,7 @@
   }
 
   const dedOf = (r) => (r.totals && r.totals.totalDeductions !== undefined ? Number(r.totals.totalDeductions) : Math.max(0, D.recGross(r) - D.recNet(r)));
+  const issuesOf = (r) => (window.CorintaIntegrity ? window.CorintaIntegrity.auditRecord(r) : []);
   const SORTS = { recent: 'Période : récente → ancienne', old: 'Période : ancienne → récente', name: 'Nom : A → Z', net: 'Net à payer : décroissant' };
   const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'fr', { sensitivity: 'base' });
   /* Lignes affichées : filtres (recherche, période, statut) puis tri — partagées par la page, les totaux et l'export. */
@@ -273,7 +274,7 @@
       const sel = status === 'Erreur' ? '<span class="cp-badge danger">Erreur</span>' : '<span class="cp-badge-select"><span class="cp-badge ' + ({ 'Brouillon': 'neutral', 'À valider': 'warning', 'Validé': 'info', 'Payé': 'success' }[status]) + '">' + esc(status) + '</span><select aria-label="Changer le statut du bulletin de ' + esc(r.name) + '" data-act="status" data-i="' + r._index + '">' + D.STATUSES.map((s) => '<option' + (s === status ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></span>';
       const act = (a, ic, label, extra) => '<button type="button" class="cp-act' + (extra || '') + '" title="' + label + '" aria-label="' + label + ' : ' + esc(r.name) + ' · ' + esc(D.monthLabel(r.period)) + '" data-act="' + a + '" data-i="' + r._index + '">' + icon(ic) + '</button>';
       return '<tr><td class="ws-chk"><input type="checkbox" data-sel="' + r._index + '" aria-label="Sélectionner le bulletin de ' + esc(r.name) + ' (' + esc(D.monthLabel(r.period)) + ')"' + (status === 'Erreur' ? ' disabled' : '') + (st.sel.has(r._index) ? ' checked' : '') + '></td>' +
-        '<td><button type="button" class="cp-person cp-person-btn" data-act="edit" data-i="' + r._index + '" title="Ouvrir le bulletin pour le modifier" aria-label="Ouvrir le bulletin de ' + esc(r.name) + ' (' + esc(D.monthLabel(r.period)) + ') pour le modifier"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + (mat ? ' · ' + esc(mat) : '') + '</span></div></button></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num">' + esc(D.money(D.recGross(r))) + '</td><td class="num">' + esc(D.money(ded)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td>' + sel + '</td>' +
+        '<td><button type="button" class="cp-person cp-person-btn" data-act="edit" data-i="' + r._index + '" title="Ouvrir le bulletin pour le modifier" aria-label="Ouvrir le bulletin de ' + esc(r.name) + ' (' + esc(D.monthLabel(r.period)) + ') pour le modifier"><span class="cp-avatar">' + esc(D.initials(r.name)) + '</span><div><b>' + esc(r.name) + '</b><span>' + esc((r.fields || {}).job || '—') + (mat ? ' · ' + esc(mat) : '') + '</span></div></button></td><td class="nw">' + esc(D.monthLabel(r.period)) + '</td><td class="num">' + esc(D.money(D.recGross(r))) + '</td><td class="num">' + (issuesOf(r).length ? '<span class="cp-warn" title="' + esc(issuesOf(r).map((s) => s.label).join(' · ')) + '" aria-label="Anomalie : ' + esc(issuesOf(r).map((s) => s.label).join(', ')) + '">⚠</span> ' : '') + esc(D.money(ded)) + '</td><td class="num"><b>' + esc(D.money(D.recNet(r))) + '</b></td><td>' + sel + '</td>' +
         '<td><div class="cp-actions">' + act('view', 'eye', 'Voir le bulletin (lecture seule)') + act('download', 'download', 'Télécharger en Excel ou PDF') + act('delete', 'trash', 'Supprimer le bulletin', ' danger') + '</div></td></tr>';
     }).join('');
     const filtered = !!(st.sq || (!locked && st.fPeriod) || st.fStatus);
@@ -417,6 +418,7 @@
     if (a.indexOf('panel:') === 0) { go(a.slice(6)); return; }
     if (a === 'ws-override') { const b = document.querySelector('#legalBanner [data-legal=override]'); if (b) b.click(); setTimeout(render, 50); return; }
     if (a === 'ws-legal-reset') { const b = document.querySelector('#legalBanner [data-legal=reset]'); if (b) b.click(); setTimeout(render, 50); return; }
+    if (a === 'integrity') { if (window.CorintaAutoRecalc) window.CorintaAutoRecalc.showIntegrity(); return; }
     if (a === 'recalc-log') { if (window.CorintaAutoRecalc) window.CorintaAutoRecalc.showLog(0); return; }
     if (a === 'ws-export') { exportPayslips(); return; }
     if (a === 'ws-bulk') { bulkStatus(); return; }
@@ -459,7 +461,7 @@
     });
     root.addEventListener('change', (e) => {
       const t = e.target;
-      if (t.dataset && t.dataset.cfg) { const c = $(t.dataset.cfg); if (c) { c.value = t.value; if (window.CorintaSettingsSync) window.CorintaSettingsSync.apply(); render(); } return; }
+      if (t.dataset && t.dataset.cfg) { if (window.CorintaSettingsSync) window.CorintaSettingsSync.ensure(); const c = $(t.dataset.cfg); if (c) { c.value = t.value; if (window.CorintaSettingsSync) window.CorintaSettingsSync.apply(); render(); } return; }
       if (t.matches('select[data-act="status"]')) { UI.setStatus(Number(t.dataset.i), t.value); return; }
       if (t.id === 'wsPeriod' && PERIOD_RE.test(t.value)) { st.period = t.value; render(); return; }
       if (t.id === 'wsFrom' || t.id === 'wsTo') { st.from = $('wsFrom').value; st.to = $('wsTo').value; if (st.from && st.to) render(); return; }
@@ -469,7 +471,7 @@
       if (t.id === 'wsFP') { st.fPeriod = t.value; render(); return; }
       if (t.id === 'wsFS') { st.fStatus = t.value; render(); }
     });
-    root.addEventListener('input', (e) => { if (e.target.dataset && e.target.dataset.cfg) { const c = $(e.target.dataset.cfg); if (c) { c.value = e.target.value; window.CorintaSettingsSync && window.CorintaSettingsSync.queue(600); } } });
+    root.addEventListener('input', (e) => { if (e.target.dataset && e.target.dataset.cfg) { if (window.CorintaSettingsSync) window.CorintaSettingsSync.ensure(); const c = $(e.target.dataset.cfg); if (c) { c.value = e.target.value; window.CorintaSettingsSync && window.CorintaSettingsSync.queue(600); } } });
     root.addEventListener('input', (e) => { if (e.target.id === 'wsPQ') { st.sq = e.target.value; render(); } if (e.target.id === 'wsSearch') search(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st.open) { $('wsMenu').classList.add('hidden'); $('wsResults').classList.add('hidden'); } });
   }

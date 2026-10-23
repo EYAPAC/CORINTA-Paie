@@ -18,8 +18,8 @@
      sont détectées toutes seules : toute modification d'un taux, d'un plafond ou d'une tranche change l'empreinte. */
   const ENGINE_REV = 'r6';
   const LOG_KEY = 'paieRecalcLog', BACKUP_KEY = 'paieHistoryBackup', SKIP_KEY = 'paieRecalcSkip';
-  const L = window.CorintaLegal, LV = window.CorintaLeave, D = window.CorintaDash;
-  if (!L || typeof restorePayrollFields !== 'function' || typeof readHistoryStore !== 'function') { console.error('auto-recalc.js : moteur de paie introuvable'); return; }
+  const L = window.CorintaLegal, LV = window.CorintaLeave, D = window.CorintaDash, IG = window.CorintaIntegrity;
+  if (!L || !IG || typeof restorePayrollFields !== 'function' || typeof readHistoryStore !== 'function') { console.error('auto-recalc.js : moteur de paie introuvable'); return; }
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -37,29 +37,37 @@
   const WATCH = ['net', 'irAmount', 'trimfAmount', 'ipresEmployee', 'ipresEmployer', 'cssEmployer', 'leaveEarned']; // totaux dont une variation compte comme un changement
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  const needs = (x, fp) => !!(x && x.fields && (x.rulesRev !== fp || IG.auditRecord(x).some((i) => i.fixable)));
   let running = false;
   async function run(reason, tries) {
     if (running) return;
     const fp = fingerprint();
     if (localStorage.getItem(SKIP_KEY) === fp) return;               // mise à jour annulée par l'utilisateur pour cette version des règles
     const history = readHistoryStore();
-    if (!history.some((x) => x && x.fields && x.rulesRev !== fp)) return;
+    if (!history.some((x) => needs(x, fp))) return;
     const typing = document.activeElement && $('pay') && $('pay').contains(document.activeElement) && /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
     if (typing && (tries || 0) < 12) { setTimeout(() => run(reason, (tries || 0) + 1), 1500); return; }   // on n'interrompt pas une saisie
     running = true;
     try {
-      const before = JSON.parse(JSON.stringify(history)), next = history.map((x) => x), changes = [];
+      const before = JSON.parse(JSON.stringify(history)), next = history.map((x) => x), changes = [], flagged = [];
       const keepFields = employeeFields(), keepName = $('companyName').value, keepEmp = ACTIVE_EMPLOYEE;
       let failed = 0;
       try {
         for (let i = 0; i < next.length; i++) {
-          const x = next[i]; if (!x || !x.fields || x.rulesRev === fp) continue;
+          const x = next[i]; if (!needs(x, fp)) continue;
           try {
             ACTIVE_EMPLOYEE = x.employeeId || ''; $('companyName').value = x.companyName || $('companyName').value;
             restorePayrollFields(x.fields, true);
+            if ($('days').value.trim() === '') { $('days').value = '30'; update(); }   // jours payés vides = mois complet
             const net = $('net').textContent, fields = employeeFields(), totals = Object.assign({}, window.payrollSnapshot);
+            const sane = IG.sanityOfRecalc(x.totals, totals);
+            if (!sane.ok) {   // un recalcul ne dégrade jamais un bulletin : on le conserve et on le signale
+              flagged.push({ i, name: x.name || '—', period: x.period || '—', reasons: sane.reasons });
+              next[i] = Object.assign({}, x, { rulesRev: fp, integrity: { at: new Date().toISOString(), reasons: sane.reasons } }); continue;
+            }
             const moved = netNum(net) !== netNum(x.net) || WATCH.some((k) => x.totals && x.totals[k] !== undefined && Math.round(Number(totals[k]) || 0) !== Math.round(Number(x.totals[k]) || 0));
             if (moved) changes.push({ i, key: (x.name || '') + '|' + (x.period || ''), name: x.name || '—', period: x.period || '—', company: x.companyName || '—', status: x.status || 'À valider', oldNet: netNum(x.net), newNet: netNum(net) });
+            delete x.integrity;
             next[i] = Object.assign({}, x, { fields, totals, net, rulesRev: fp }, moved ? { recalc: { at: new Date().toISOString(), oldNet: netNum(x.net), reason } } : {});
           } catch (err) { failed++; console.error('Recalcul automatique impossible pour', x && x.name, err); }
           if (i % 25 === 24) await wait(0);
@@ -76,6 +84,30 @@
       if (typeof renderCumul === 'function') { try { renderCumul(); } catch (e) { /* page de saisie non affichée */ } }
       if (changes.length) { toast(changes.length + ' bulletin' + (changes.length > 1 ? 's' : '') + ' mis à jour automatiquement (règles modifiées)'); showLog(0); }
     } finally { running = false; }
+    reportIntegrity();
+  }
+
+  /* ───────── Contrôle d'intégrité : bulletins incomplets (salaire absent, 0 jour, retenues absentes…) ───────── */
+  function auditAll() {
+    return readHistoryStore().map((x, i) => ({ i, x, issues: IG.auditRecord(x) })).filter((e) => e.issues.length)
+      .map((e) => ({ i: e.i, name: e.x && e.x.name || '—', period: e.x && e.x.period || '—', company: e.x && e.x.companyName || '—', status: e.x && e.x.status || '', issues: e.issues }));
+  }
+  function reportIntegrity() {
+    const list = auditAll(); if (!list.length) return;
+    const sig = hash(JSON.stringify(list.map((e) => [e.i, e.issues.map((s) => s.code)])));
+    if (localStorage.getItem('paieIntegritySeen') === sig) return;
+    try { localStorage.setItem('paieIntegritySeen', sig); } catch (e) { /* stockage plein */ }
+    toast(list.length + ' bulletin' + (list.length > 1 ? 's' : '') + ' à vérifier (Documents › Contrôle des bulletins)');
+  }
+  function showIntegrity() {
+    const list = auditAll(), m = modal();
+    m.innerHTML = '<div class="modal-card" style="width:min(900px,96vw);max-height:90vh;overflow:auto"><h2 id="rlTitle">Contrôle des bulletins</h2>' + (!list.length
+      ? '<p class="muted">✔ Tous les bulletins enregistrés sont complets : salaire, jours payés, gains, retenues et net cohérents.</p>'
+      : '<p class="muted">' + list.length + ' bulletin' + (list.length > 1 ? 's présentent' : ' présente') + ' une anomalie. Ouvrez-les pour corriger la saisie (salaire, jours payés…), puis « Enregistrer et valider ». Les anomalies réparables par simple recalcul sont corrigées automatiquement.</p>' +
+        '<div style="overflow:auto"><table class="ct"><thead><tr><th>Salarié</th><th>Période</th><th>Statut</th><th>Anomalie</th><th></th></tr></thead><tbody>' +
+        list.map((e) => '<tr><td>' + esc(e.name) + '</td><td>' + esc(D ? D.monthLabel(e.period) : e.period) + '</td><td>' + esc(e.status) + '</td><td>' + e.issues.map((s) => esc(s.label)).join('<br>') + '</td><td><button type="button" class="btn" data-rl="open" data-i="' + e.i + '">Ouvrir</button></td></tr>').join('') + '</tbody></table></div>') +
+      '<div class="modal-actions"><button type="button" class="btn primary" data-rl="close">Fermer</button></div></div>';
+    m.classList.remove('hidden');
   }
   let timer = 0;
   const schedule = (reason) => { clearTimeout(timer); timer = setTimeout(() => run(reason), 400); };
@@ -88,7 +120,8 @@
       document.body.appendChild(m);
       m.addEventListener('click', (e) => {
         if (e.target === m || e.target.closest('[data-rl="close"]')) { m.classList.add('hidden'); return; }
-        if (e.target.closest('[data-rl="undo"]')) undo();
+        if (e.target.closest('[data-rl="undo"]')) { undo(); return; }
+        const op = e.target.closest('[data-rl="open"]'); if (op && window.CorintaUI) { m.classList.add('hidden'); window.CorintaUI.act('edit', { dataset: { i: op.dataset.i } }); }
       });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') m.classList.add('hidden'); });
     }
@@ -130,6 +163,6 @@
     window.writeStore = function (key) { const r = baseWrite.apply(this, arguments); if (key === 'paieSettings') schedule('paramètres modifiés'); return r; };
   }
   window.addEventListener('storage', (e) => { if (e.key === 'paieSettings' || e.key === 'paieHistory') schedule('données modifiées'); });
-  window.CorintaAutoRecalc = { run: (r) => run(r || 'vérification manuelle'), fingerprint, showLog, schedule };
+  window.CorintaAutoRecalc = { audit: auditAll, showIntegrity, run: (r) => run(r || 'vérification manuelle'), fingerprint, showLog, schedule };
   schedule('mise à jour du logiciel ou des règles');
 })();

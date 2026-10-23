@@ -31,7 +31,10 @@
     });
   }
 
+  /* Le Paramétrage n'est rempli qu'à l'ouverture de sa page : on l'initialise avant toute lecture (sinon des champs vides écraseraient les réglages). */
+  function ensure() { if (!$('rates') || !$('rates').children.length) setup(); }
   function apply() {
+    ensure();
     const old = { transport: S.transport, ipm: S.ipm, defaultExtra: S.defaultExtra };
     try {
       readFamilySettings();
@@ -60,5 +63,5 @@
 
   cfg.addEventListener('input', (e) => { if (e.target.matches && e.target.matches(WATCH)) queue(600); });
   cfg.addEventListener('change', (e) => { if (e.target.matches && e.target.matches(WATCH)) queue(120); });
-  window.CorintaSettingsSync = { apply, queue };
+  window.CorintaSettingsSync = { apply, queue, ensure };
 })();
