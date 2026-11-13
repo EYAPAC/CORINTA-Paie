@@ -16,9 +16,11 @@
 
   const STATUS = ['brouillon', 'signé', 'en cours', 'terminé'];
   /* Types de contrat : CDI, CDD à terme précis, CDD conclu pour la durée d'un projet (modèle CDD du cabinet). */
-  const TYPE_LABEL = { CDI: 'CDI — durée indéterminée', CDD: 'CDD — terme précis (dates)', CDD_PROJET: 'CDD — pour la durée d’un projet' };
-  const TYPE_SHORT = { CDI: 'CDI', CDD: 'CDD', CDD_PROJET: 'CDD projet' };
+  const TYPE_LABEL = { CDI: 'CDI — durée indéterminée', CDD: 'CDD — terme précis (dates)', CDD_PROJET: 'CDD — pour la durée d’un projet', PRESTATION: 'Contrat de prestation de services', LDC: 'Lettre de commande de services' };
+  const TYPE_SHORT = { CDI: 'CDI', CDD: 'CDD', CDD_PROJET: 'CDD projet', PRESTATION: 'Prestation', LDC: 'Lettre de commande' };
   const isCdd = (t) => t === 'CDD' || t === 'CDD_PROJET';
+  /* Prestations de services : contrat d'entreprise (indépendant), hors Code du travail — ni salaire, ni DMT, ni bulletin. */
+  const isService = (t) => t === 'PRESTATION' || t === 'LDC';
   const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize'];
   const TENS = { 2: 'vingt', 3: 'trente', 4: 'quarante', 5: 'cinquante', 6: 'soixante' };
   function numWords(n) {
@@ -28,6 +30,35 @@
     const d = Math.floor(n / 10), u = n % 10; return TENS[d] + (u === 0 ? '' : (u === 1 ? ' et ' : '-') + WORDS[u]);
   }
   const withDigits = (n) => numWords(n) + ' (' + String(Math.round(Number(n) || 0)).padStart(2, '0') + ')';
+  const U19 = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+  function below100(n, final) {
+    if (n < 20) return U19[n]; const t = Math.floor(n / 10), u = n % 10;
+    if (t <= 6) { const T = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante'][t]; return u === 0 ? T : (u === 1 ? T + ' et un' : T + '-' + U19[u]); }
+    if (t === 7) return u === 1 ? 'soixante et onze' : 'soixante-' + U19[10 + u];
+    if (t === 8) return u === 0 ? 'quatre-vingt' + (final ? 's' : '') : 'quatre-vingt-' + U19[u];
+    return 'quatre-vingt-' + U19[10 + u];
+  }
+  function below1000(n, final) {
+    const h = Math.floor(n / 100), r = n % 100, out = [];
+    if (h > 0) out.push((h > 1 ? U19[h] + ' ' : '') + 'cent' + (h > 1 && r === 0 && final ? 's' : ''));
+    if (r > 0) out.push(below100(r, final)); return out.join(' ');
+  }
+  /** Montant entier en toutes lettres (« cent quatre-vingt mille », « deux millions ») ; au-delà de 999 999 999 999 : chiffres. */
+  function amountWords(v) {
+    const n = Math.round(Number(v) || 0); if (n < 0 || n >= 1e12) return String(n); if (n === 0) return 'zéro';
+    const bn = Math.floor(n / 1e9), mi = Math.floor((n % 1e9) / 1e6), th = Math.floor((n % 1e6) / 1000), rest = n % 1000, out = [];
+    if (bn) out.push(below1000(bn, true) + ' milliard' + (bn > 1 ? 's' : ''));
+    if (mi) out.push((mi === 1 ? 'un' : below1000(mi, true)) + ' million' + (mi > 1 ? 's' : ''));
+    if (th) out.push(th === 1 ? 'mille' : below1000(th, false) + ' mille');
+    if (rest) out.push(below1000(rest, true)); return out.join(' ');
+  }
+  /** Désignation courte de l'entreprise dans les contrats de prestation (« MSA », « le Cabinet »…) : nom sans forme juridique, sinon initiales. */
+  function deriveAlias(name) {
+    const base = str(name).replace(/\b(cabinet|entreprise|soci[ée]t[ée]|sarl|sas|sa|groupe)\b/gi, ' ').replace(/\s+/g, ' ').trim() || str(name);
+    if (!base) return 'le Cabinet'; if (base.length <= 16) return base;
+    const w = base.split(/\s+/).filter((x) => /^[A-ZÀ-Ý]/.test(x)); if (w.length && /^[A-ZÀ-Ý]{2,}$/.test(w[0])) return w[0]; return w.length >= 2 ? w.map((x) => x[0]).join('').toUpperCase() : base.slice(0, 16);
+  }
+  const deAlias = (a) => (/^[aeiouyhàâéèêîôû]/i.test(str(a)) ? 'd’' : 'de ') + str(a);
   const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   function longDate(isoDate) { const p = String(isoDate || '').split('-').map(Number); return p.length === 3 && p[0] ? String(p[2]).padStart(2, '0') + ' ' + MOIS_FR[p[1] - 1][0].toUpperCase() + MOIS_FR[p[1] - 1].slice(1) + ' ' + p[0] : ''; }
   const FAMILLE = { celibataire: 'Célibataire', marie: 'Marié(e)', divorce: 'Divorcé(e)', veuf: 'Veuf(ve)' };
@@ -56,6 +87,30 @@
       CDD_PROJET: 'Le présent contrat est conclu pour la durée du projet « {projet} »{objet}. Il prend effet le {debut} et prend fin de plein droit à l’achèvement du projet{finPrevue}. Cette date n’est donnée qu’à titre prévisionnel : toute prolongation au-delà de la fin du projet ou de cette date fait l’objet d’un avenant écrit.'
     }
   };
+  /* Clauses des contrats de prestation de services et lettres de commande (modifiables). Variables : {alias} {de} {preavis} {taux} {plafond}.
+     Une ligne = un paragraphe. Références légales citées : seules celles dont le texte a été vérifié (loi n° 2008-09 et loi n° 2008-12 du 25 janvier 2008). */
+  const SERVICE_CLAUSES = {
+    nature: 'Le présent contrat est un contrat de prestation de services (contrat d’entreprise) soumis au droit sénégalais, notamment au Code des obligations civiles et commerciales. Il ne constitue ni un contrat de travail, ni un mandat, ni un contrat de société ; le Prestataire exerce sa mission en toute indépendance et n’est placé sous l’autorité hiérarchique ou disciplinaire ni {de}, ni du Client.',
+    independance: 'Le Prestataire organise librement son travail, ses horaires et ses méthodes, dans le respect des délais, des livrables et des exigences de qualité fixés au présent contrat. Il utilise ses propres moyens, sauf ceux que {alias} met expressément à sa disposition pour les besoins de la mission.\n{alias} définit les objectifs, les livrables et le calendrier de remise ; {alias} ne donne pas d’ordres sur la manière d’exécuter la prestation et n’exerce aucun pouvoir disciplinaire.\nLe Prestataire reste libre d’exercer d’autres activités, sous réserve de l’article relatif aux conflits d’intérêts. Il ne peut se faire remplacer ou assister qu’avec l’accord écrit préalable {de}.',
+    fiscal: 'Le Prestataire est seul responsable de ses obligations fiscales et sociales (immatriculation, déclarations, impôts, taxes et cotisations dus au titre de son activité indépendante) ; il indique son numéro d’identification (NINEA) lorsqu’il en dispose.\nLes sommes dues sont réglées sur présentation d’une facture ou d’une note d’honoraires régulière, sous déduction, le cas échéant, des retenues à la source prévues par la législation fiscale sénégalaise en vigueur, que {alias} opère et reverse à l’administration fiscale.',
+    normes: 'Réalisera les prestations et remplira les obligations découlant du présent contrat de façon diligente, efficace et économique, conformément aux règles de l’art et aux pratiques généralement acceptées dans sa profession ;\nSe comportera toujours en partenaire loyal {de} et l’informera sans délai de toute difficulté de nature à compromettre l’exécution de la mission.',
+    qualite: 'Le Prestataire gère librement son temps dans l’exécution des prestations qui lui sont confiées. {alias}, en tant que commanditaire, fixe le calendrier de remise des livrables et peut, à tout moment, contrôler leur conformité et apprécier leur qualité ; le Prestataire corrige à ses frais les non-conformités qui lui sont imputables.',
+    conflit: 'Le Prestataire s’abstiendra de toute relation susceptible de compromettre son indépendance dans le cadre de l’exécution de sa mission.\nPendant la durée du contrat et à son issue, il s’interdit de fournir des biens, travaux ou services destinés à tout projet découlant des prestations objet du présent contrat ou ayant un rapport étroit avec elles, sauf accord écrit {de} (à l’exception de l’exécution de ces prestations et de leur éventuelle continuation).',
+    confidentialite: 'Le Prestataire s’engage à garder totalement confidentiels, et ce sans limitation de durée, les documents et informations reçus ou portés à sa connaissance dans le cadre de la mission et du présent contrat.\nIl ne pourra à aucun moment, sauf consentement écrit du Client, rendre publiques des informations sur les recommandations formulées au cours ou par suite des prestations réalisées.\nIl ne pourra, sauf dans la mesure nécessaire à l’exécution de la mission, ni publier ni divulguer aucun élément du présent contrat sans le consentement préalable écrit {de}.',
+    donnees: 'Dans le cadre de la mission, le Prestataire peut avoir accès à des données à caractère personnel (notamment celles des personnes concernées par le projet). Il s’engage à les traiter uniquement pour les besoins de la mission et sur instruction {de}, conformément à la loi n° 2008-12 du 25 janvier 2008 sur la protection des données à caractère personnel, à en garantir la sécurité et la confidentialité, à ne les copier ni les conserver à l’issue de la mission et à signaler sans délai toute perte ou divulgation.',
+    propriete: 'Les rapports, études, données, bases de données, documents et autres livrables produits par le Prestataire dans le cadre du présent contrat sont la propriété {de} et, le cas échéant, du Client.\nLe Prestataire cède à {alias}, à titre exclusif et au fur et à mesure de leur réalisation, les droits patrimoniaux d’auteur qu’il pourrait détenir sur ces livrables, pour toute la durée de protection légale, pour tous pays et sur tous supports, conformément à la loi n° 2008-09 du 25 janvier 2008 sur le droit d’auteur et les droits voisins. Cette cession est comprise dans les honoraires. Le Prestataire conserve ses droits moraux ainsi que son savoir-faire antérieur à la mission.',
+    penalites: 'Si le Prestataire est dans l’impossibilité d’assurer les prestations qui lui sont confiées dans les délais prévus, il en avise {alias} immédiatement et, en tout état de cause, avant l’expiration du délai, en soumettant dans le même temps à son appréciation les justifications (force majeure ou autre) qu’il pourrait fournir. Cette prescription est impérative.\nÀ défaut de justification admise, et après mise en demeure écrite restée sans effet, une pénalité de {taux} pour mille du montant des honoraires est due par jour de retard imputable au Prestataire, dans la limite de {plafond} % de ce montant. Cette pénalité constitue une clause pénale, sans préjudice du pouvoir d’appréciation du juge.',
+    forceMajeure: 'Aucune des parties n’est responsable d’un manquement à ses obligations dû à un cas de force majeure, c’est-à-dire à un événement imprévisible, irrésistible et extérieur à la partie qui l’invoque. Cette dernière le notifie à l’autre par écrit dans les meilleurs délais ; les obligations concernées sont suspendues pendant la durée de l’événement.\nSi l’empêchement dépasse trente (30) jours, chaque partie peut résilier le contrat sans indemnité, les prestations déjà réalisées restant dues.',
+    resiliation: 'Chaque partie peut mettre fin au contrat à tout moment, par écrit, moyennant un préavis de {preavis} jours.\nEn cas de manquement grave de l’une des parties à ses obligations, ou de manquements répétés préjudiciables à la bonne exécution de la mission, l’autre partie peut résilier le contrat sans préavis, après mise en demeure écrite restée sans effet pendant huit (08) jours.\nEn cas de résiliation, les prestations régulièrement exécutées jusqu’à la date d’effet sont rémunérées au prorata ; le Prestataire remet à {alias} les travaux en cours et restitue les documents, données et matériels qui lui ont été confiés.',
+    finales: 'Le présent contrat exprime l’intégralité de l’accord des parties sur son objet. Toute modification ou prolongation fait l’objet d’un avenant écrit signé des deux parties. Si l’une de ses stipulations était déclarée nulle, les autres demeureraient applicables.'
+  };
+  const serviceDefaults = (p, name) => ({
+    alias: str(p && p.alias) || deriveAlias(name), cin: '', tel: '', email: '', ninea: '', numero: '',
+    intitule: '', client: '', contratPrincipal: '', taches: [], supervision: '',
+    remunMode: 'global', montant: 0, nature: 'brut', perdiem: 0, jalons: [], delaiPaiement: 30, apresClient: false,
+    moyens: { virement: true, cheque: true, mobile: false }, penaliteTaux: 0, penalitePlafond: 10, preavis: 15, litige: 'tribunal',
+    clauses: Object.assign({}, SERVICE_CLAUSES)
+  });
   const cddClause = (k, type) => (k === 'duree' ? (CLAUSES_CDD.duree[type] || '') : (isCdd(type) ? CLAUSES_CDD[k] : CLAUSES[k]));
   const uid = () => 'ct-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
 
@@ -68,6 +123,7 @@
       worker: { civilite: 'Monsieur', nom: '', prenoms: '', sexe: 'M', naissance: '', lieuNaissance: '', pays: 'Sénégal', nationalite: 'Sénégalaise', pere: '', mere: '', domicile: '', famille: 'celibataire', enfants: 0, conjointRevenus: false, epouses: 0, nomsEpouses: '', nomsEnfants: '' },
       job: { projetNom: '', projetObjet: '', fonctionDetail: '', copieInspection: false, emploi: '', classification: '', convention: 'Convention collective nationale du commerce du 16 novembre 1956', dateEngagement: '', type: 'CDI', dateFin: '', essaiMois: 3, essaiRenouvelable: true, horaire: 40, lieu: str(p.siege), lieuSignature: str(p.ville) || 'Dakar', dateContrat: '', exemplaires: 4 },
       salary: { base: 0, sursalaire: 0, logement: 0, anciennetePct: 0, transport: 0 },
+      service: serviceDefaults(p, company && (company.employer || company.name)),
       clauses: { references: CLAUSES.references.slice(), conges: CLAUSES.conges, prevoyance: CLAUSES.prevoyance, discipline: CLAUSES.discipline, mobilite: CLAUSES.mobilite, duree: '' },
       dmt: null
     };
@@ -79,6 +135,10 @@
     const out = Object.assign({}, b, c);
     ['employer', 'worker', 'job', 'salary', 'clauses'].forEach((k) => { out[k] = Object.assign({}, b[k], (c && c[k]) || {}); });
     if (!Array.isArray(out.clauses.references)) out.clauses.references = CLAUSES.references.slice();
+    out.service = Object.assign({}, b.service, (c && c.service) || {});
+    out.service.clauses = Object.assign({}, b.service.clauses, (c && c.service && c.service.clauses) || {});
+    out.service.moyens = Object.assign({}, b.service.moyens, (c && c.service && c.service.moyens) || {});
+    ['taches', 'jalons'].forEach((k) => { if (!Array.isArray(out.service[k])) out.service[k] = []; });
     if (!STATUS.includes(out.status)) out.status = 'brouillon';
     if (!TYPE_LABEL[out.job.type]) out.job.type = 'CDI';
     if (isCdd(out.job.type) && !str(out.clauses.duree)) out.clauses.duree = CLAUSES_CDD.duree[out.job.type];
@@ -89,6 +149,8 @@
   function switchType(c, type) {
     if (!TYPE_LABEL[type]) return c;
     const old = c.job.type; c.job.type = type;
+    if (isService(type)) { c.job.essaiMois = 0; c.job.copieInspection = false; if (type === 'LDC' && num(c.job.exemplaires) === 4) c.job.exemplaires = 2; if (type === 'PRESTATION' && num(c.job.exemplaires) === 2) c.job.exemplaires = 4; return c; }
+    if (isService(old)) { c.job.essaiMois = type === 'CDI' ? 3 : 0; c.job.copieInspection = isCdd(type); if (num(c.job.exemplaires) === 2) c.job.exemplaires = 4; }
     ['conges', 'mobilite'].forEach((k) => { if (c.clauses[k] === cddClause(k, old)) c.clauses[k] = cddClause(k, type); });
     if (!str(c.clauses.duree) || c.clauses.duree === cddClause('duree', old)) c.clauses.duree = cddClause('duree', type);
     if (isCdd(type) && num(c.job.essaiMois) === 3) c.job.essaiMois = 0;
@@ -136,8 +198,47 @@
     return new Date(Date.parse(e) - 864e5).toISOString().slice(0, 10);
   }
 
+  /** Montants d'un contrat de prestation : honoraires, en lettres, échéances (en %) converties en FCFA, per diem. */
+  function serviceTotals(c) {
+    const s = (c && c.service) || {}, montant = Math.max(0, Math.round(num(s.montant))), jalons = (s.jalons || []).map((x) => ({ pct: num(x.pct), libelle: str(x.libelle), montant: Math.round(montant * num(x.pct) / 100) }));
+    const pct = jalons.reduce((a, x) => a + x.pct, 0);
+    return { montant, enLettres: amountWords(montant), jalons, pctTotal: Math.round(pct * 100) / 100, perdiem: Math.max(0, Math.round(num(s.perdiem))), perdiemEnLettres: amountWords(s.perdiem) };
+  }
+  /** « 30 | Livrable 1 : rapport de démarrage » (une échéance par ligne) ↔ [{ pct, libelle }]. */
+  const parseJalons = (text) => String(text == null ? '' : text).split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = /^(\d+(?:[.,]\d+)?)\s*(?:%|\|)?\s*[|:–-]?\s*(.*)$/.exec(l); return m ? { pct: num(m[1]), libelle: str(m[2]) } : { pct: 0, libelle: l }; });
+  const jalonsText = (arr) => (arr || []).map((x) => num(x.pct) + ' | ' + str(x.libelle)).join('\n');
+
+  function validateService(c) {
+    const errors = [], warnings = [], w = c.worker || {}, j = c.job || {}, s = c.service || {}, e = c.employer || {}, t = serviceTotals(c);
+    const label = j.type === 'LDC' ? 'la lettre de commande' : 'le contrat';
+    if (!str(w.nom)) errors.push('Le nom du prestataire est obligatoire.');
+    if (!str(w.prenoms)) errors.push('Les prénoms du prestataire sont obligatoires.');
+    if (!str(s.intitule)) errors.push('L’intitulé de la mission (titre de l’activité) est obligatoire.');
+    if (!iso(j.dateEngagement)) errors.push('La date de début d’exécution est obligatoire.');
+    if (iso(j.dateFin) && iso(j.dateEngagement) && j.dateFin <= j.dateEngagement) errors.push('La date de fin doit être postérieure à la date de début.');
+    if (!(t.montant > 0)) errors.push('Le montant des honoraires doit être supérieur à 0.');
+    if (num(s.perdiem) < 0) errors.push('Le per diem ne peut pas être négatif.');
+    if (t.jalons.length && Math.abs(t.pctTotal - 100) > 0.01) errors.push('Les échéances de paiement doivent totaliser 100 % (actuellement ' + t.pctTotal + ' %).');
+    if (num(s.penaliteTaux) < 0 || num(s.penalitePlafond) < 0) errors.push('Les pénalités ne peuvent pas être négatives.');
+    if (!str(j.emploi)) warnings.push('Fonction / profil du prestataire non renseigné (ex. Assistant de projet, Ingénieur HSE).');
+    if (!(s.taches || []).length) warnings.push('Aucune tâche listée : décrivez les activités confiées au prestataire.');
+    if (!str(s.client)) warnings.push('Client final non renseigné (contrat principal à l’origine de la mission).');
+    if (!iso(j.dateFin)) warnings.push('Date de fin non renseignée : la durée de la mission n’est pas précisée dans ' + label + '.');
+    if (!str(s.cin)) warnings.push('N° de pièce d’identité (CIN) du prestataire non renseigné.');
+    if (!str(s.ninea)) warnings.push('NINEA non renseigné : vérifiez le statut fiscal du prestataire (retenue à la source, facture).');
+    if (!str(s.tel) && !str(s.email)) warnings.push('Aucun moyen de contact (téléphone ou e-mail) pour le prestataire.');
+    if (!str(w.domicile)) warnings.push('Adresse du prestataire non renseignée.');
+    if (!str(e.siege)) warnings.push('Siège de l’entreprise non renseigné.');
+    if (!str(e.representant)) warnings.push('Représentant de l’entreprise non renseigné.');
+    const mois = iso(j.dateEngagement) && iso(j.dateFin) ? Math.round((dayDiff(j.dateEngagement, j.dateFin) + 1) / 30.44) : 0;
+    if (s.remunMode === 'mensuel' && mois >= 6) warnings.push('Risque de requalification : des honoraires mensuels fixes sur ' + mois + ' mois ressemblent à un salaire. Si le prestataire est en pratique subordonné (horaires imposés, exclusivité, hiérarchie), le juge peut y voir un contrat de travail : privilégiez un prix global par livrable et l’autonomie d’organisation.');
+    if (/supervision directe|sous (?:la )?(?:direction|autorit)/i.test(str(s.supervision))) warnings.push('Le mot « supervision directe / autorité » suggère un lien de subordination : parlez plutôt de coordination et de validation des livrables.');
+    return { errors, warnings, valid: errors.length === 0 };
+  }
+
   /** Contrôles de saisie : errors bloquent l'impression, warnings sont affichés. */
   function validate(c) {
+    if (isService((c.job || {}).type)) return validateService(c);
     const errors = [], warnings = [], w = c.worker || {}, j = c.job || {}, s = c.salary || {}, e = c.employer || {};
     if (!str(w.nom)) errors.push('Le nom du travailleur est obligatoire.');
     if (!str(w.prenoms)) errors.push('Les prénoms du travailleur sont obligatoires.');
@@ -169,10 +270,10 @@
   }
 
   /** Numéro de contrat suivant : CT-AAAA-NNN (par entreprise et par année). */
-  function nextNumber(list, today) {
-    const y = String(today || '').slice(0, 4) || String(new Date().getFullYear());
-    const used = (list || []).map((c) => { const m = /^CT-([0-9]{4})-([0-9]+)$/.exec(str(c.number)); return m && m[1] === y ? Number(m[2]) : 0; });
-    return 'CT-' + y + '-' + String(Math.max(0, ...used) + 1).padStart(3, '0');
+  function nextNumber(list, today, type) {
+    const y = String(today || '').slice(0, 4) || String(new Date().getFullYear()), pre = { LDC: 'LDC', PRESTATION: 'PS' }[type] || 'CT', re = new RegExp('^' + pre + '-([0-9]{4})-([0-9]+)$');
+    const used = (list || []).map((c) => { const m = re.exec(str(c.number)); return m && m[1] === y ? Number(m[2]) : 0; });
+    return pre + '-' + y + '-' + String(Math.max(0, ...used) + 1).padStart(3, '0');
   }
 
   /** Valeurs de la DMT reprises du contrat (lecture seule dans la DMT) + compléments propres à la DMT. */
@@ -213,6 +314,10 @@
     (contracts || []).forEach((c) => {
       if (c.status === 'terminé') return;
       const name = fullName(c.worker || {}) || 'Travailleur', j = c.job || {};
+      if (isService(j.type)) {
+        if (iso(j.dateFin)) { const d = dayDiff(today, j.dateFin), what = (j.type === 'LDC' ? 'La lettre de commande' : 'La mission') + ' de ' + name; if (d < 0) out.push({ id: c.id, level: 'late', text: what + ' est arrivée à échéance depuis ' + Math.abs(d) + ' j : clôturer, ou prolonger par avenant écrit.' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: what + ' prend fin le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
+        return;
+      }
       const te = trialEnd(c);
       if (te) { const d = dayDiff(today, te); if (d >= 0 && d <= 15) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: 'Fin de période d’essai de ' + name + ' le ' + te.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
       if (isCdd(j.type) && iso(j.dateFin)) { const d = dayDiff(today, j.dateFin), what = j.type === 'CDD_PROJET' ? 'La fin prévisionnelle du projet' + (str(j.projetNom) ? ' « ' + str(j.projetNom) + ' »' : '') + ' (CDD de ' + name + ')' : 'Le CDD de ' + name; if (d < 0) out.push({ id: c.id, level: 'late', text: what + ' est dépassé' + (j.type === 'CDD_PROJET' ? 'e' : '') + ' depuis ' + Math.abs(d) + ' j : renouveler ou clôturer.' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: what + ' arrive à échéance le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
@@ -221,6 +326,6 @@
     return out;
   }
 
-  const api = { TYPE_LABEL, TYPE_SHORT, isCdd, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
+  const api = { TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContracts = api;
 })(typeof window !== 'undefined' ? window : globalThis);

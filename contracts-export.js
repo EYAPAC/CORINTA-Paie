@@ -50,7 +50,12 @@
   const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize'];
   const inWords = (n) => { n = Math.round(Number(n) || 0); return (WORDS[n] || String(n)) + ' (' + String(n).padStart(2, '0') + ')'; };
 
+  /** Contrats de prestation et lettres de commande : modèles dans contracts-services-doc.js (même moteur de rendu). */
   function contractModel(d) {
+    const sv = api.serviceModels && api.serviceModels[(d.job || {}).type];
+    return sv ? sv(d, api.H) : employmentModel(d);
+  }
+  function employmentModel(d) {
     const k = K(), w = d.worker, j = d.job, e = d.employer, s = k.salaryTotals(d.salary), cdd = k.isCdd(j.type), projet = j.type === 'CDD_PROJET';
     const fem = w.sexe === 'F', civ = fem ? 'Madame' : (w.civilite || 'Monsieur'), nom = k.fullName(w);
     const fam = (k.FAMILLE[w.famille] || '') + (k.num(w.enfants) > 0 ? ', ' + String(Math.round(k.num(w.enfants))).padStart(2, '0') + ' enfant' + (k.num(w.enfants) > 1 ? 's' : '') : '');
@@ -119,7 +124,7 @@
   }
 
   /* ───────── Rendu HTML (aperçu + impression) ───────── */
-  const CSS = '.cx-page{background:#fff;color:#000;box-sizing:border-box;width:595pt;max-width:none;margin:0 auto 14px;padding:70.9pt;box-shadow:0 1px 8px rgba(15,35,70,.22);page:contract;font-size:11pt;line-height:1.2;position:relative;min-height:842pt}.cx-page *{box-sizing:border-box}.cx-page .p{margin:0;word-wrap:break-word;overflow-wrap:anywhere;display:block}.cx-page .p.f{display:flex}.cx-page .p.f>.n{flex:0 0 auto}.cx-page .p.f>.t{flex:1 1 0;min-width:0}.cx-page .box{border:1.2pt solid #000;margin:0 auto 12pt;padding:8pt 30pt;text-align:center;font:700 14pt/1.3 Arial,Helvetica,sans-serif;width:max-content;max-width:100%}.cx-page table.t{border-collapse:collapse;border:0}.cx-page table.t td{padding:0 12pt 1pt 0;vertical-align:top}.cx-page table.sg{width:100%;border-collapse:collapse;table-layout:fixed}.cx-page table.sg td{vertical-align:top;padding:0 6pt}.cx-page sup{font-size:.65em;line-height:0}.cx-pn{position:absolute;top:6pt;right:10pt;font:9px Arial,sans-serif;color:#7a8699}' +
+  const CSS = '.cx-page{background:#fff;color:#000;box-sizing:border-box;width:595pt;max-width:none;margin:0 auto 14px;padding:70.9pt;box-shadow:0 1px 8px rgba(15,35,70,.22);page:contract;font-size:11pt;line-height:1.2;position:relative;min-height:842pt}.cx-page *{box-sizing:border-box}.cx-page .p{margin:0;word-wrap:break-word;overflow-wrap:anywhere;display:block}.cx-page .p.f{display:flex}.cx-page .p.f>.n{flex:0 0 auto}.cx-page .p.f>.t{flex:1 1 0;min-width:0}.cx-page .box{border:1.2pt solid #000;margin:0 auto 12pt;padding:8pt 30pt;text-align:center;font:700 14pt/1.3 Arial,Helvetica,sans-serif;width:max-content;max-width:100%}.cx-page table.t{border-collapse:collapse;border:0}.cx-page table.t td{padding:0 12pt 1pt 0;vertical-align:top}.cx-page table.t.bd{border:.7pt solid #000}.cx-page table.t.bd td{border:.7pt solid #000;padding:3pt 6pt}.cx-page table.sg{width:100%;border-collapse:collapse;table-layout:fixed}.cx-page table.sg td{vertical-align:top;padding:0 6pt}.cx-page sup{font-size:.65em;line-height:0}.cx-pn{position:absolute;top:6pt;right:10pt;font:9px Arial,sans-serif;color:#7a8699}' +
     '.cx-dmt{background:#fff;color:#000;margin:0 auto 14px;box-shadow:0 1px 8px rgba(15,35,70,.22);width:max-content;max-width:none;page:dmt}.cx-dmt table{border-collapse:collapse;table-layout:fixed;font-family:Cambria,"Times New Roman",serif}.cx-dmt td{padding:0;overflow:hidden;line-height:1.1;white-space:nowrap}' +
     '@media print{body.printing-doc #docPrint .cx-page,body.printing-doc #docPrint .cx-dmt{box-shadow:none;margin:0;width:auto;min-height:0;padding:0;break-after:page}body.printing-doc #docPrint .cx-pn{display:none}@page contract{size:A4;margin:2.5cm}@page dmt{size:A4;margin:5mm}}';
   const rz = (m) => (m.sz || 11);
@@ -138,7 +143,7 @@
   }
   function blockHtml(b) {
     if (b.k === 'box') return '<div class="box">' + b.lines.map(esc).join('<br>') + '</div>';
-    if (b.k === 'tab') return '<div style="padding-left:' + (b.li || 0) + 'pt;margin-bottom:8pt"><table class="t">' + b.rows.map((r) => '<tr>' + r.map((c, i) => '<td style="width:' + (b.widths[i] || 100) + 'pt">' + c.map(runHtml).join('') + '</td>').join('') + '</tr>').join('') + '</table></div>';
+    if (b.k === 'tab') return '<div style="padding-left:' + (b.li || 0) + 'pt;margin-bottom:8pt"><table class="t' + (b.border ? ' bd' : '') + '">' + b.rows.map((r, ri) => '<tr>' + r.map((c, i) => '<td style="width:' + (b.widths[i] || 100) + 'pt' + (b.head && ri === 0 ? ';background:#eef0f4;font-weight:700' : '') + (b.right && b.right.includes(i) ? ';text-align:right' : '') + '">' + c.map(runHtml).join('') + '</td>').join('') + '</tr>').join('') + '</table></div>';
     if (b.k === 'sign') return '<table class="sg"><tr>' + b.cols.map((c) => '<td>' + c.map(pHtml).join('') + '</td>').join('') + '</tr></table>';
     return pHtml(b);
   }
@@ -172,8 +177,10 @@
     }
     if (b.k === 'tab') {
       const ws = b.widths.map(tw), tot = ws.reduce((x, y) => x + y, 0);
-      return '<w:tbl><w:tblPr><w:tblW w:w="' + tot + '" w:type="dxa"/><w:tblInd w:w="' + tw(b.li || 0) + '" w:type="dxa"/>' + NOB + '<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>' + ws.map((x) => '<w:gridCol w:w="' + x + '"/>').join('') + '</w:tblGrid>' +
-        b.rows.map((r) => '<w:tr><w:trPr><w:cantSplit/></w:trPr>' + r.map((c, i) => '<w:tc><w:tcPr><w:tcW w:w="' + ws[i] + '" w:type="dxa"/></w:tcPr>' + pXml(P(c, { a: 'l', sa: 3, kn: 1 }), model) + '</w:tc>').join('') + '</w:tr>').join('') + '</w:tbl>' + pXml(P('', { sa: 4 }), model);
+      const brd = b.border ? '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((s) => '<w:' + s + ' w:val="single" w:sz="4" w:space="0" w:color="000000"/>').join('') + '</w:tblBorders>' : NOB;
+      const mar = b.border ? '<w:tblCellMar><w:top w:w="50" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="50" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar>' : '';
+      return '<w:tbl><w:tblPr><w:tblW w:w="' + tot + '" w:type="dxa"/><w:tblInd w:w="' + tw(b.li || 0) + '" w:type="dxa"/>' + brd + '<w:tblLayout w:type="fixed"/>' + mar + '</w:tblPr><w:tblGrid>' + ws.map((x) => '<w:gridCol w:w="' + x + '"/>').join('') + '</w:tblGrid>' +
+        b.rows.map((r, ri) => '<w:tr><w:trPr><w:cantSplit/></w:trPr>' + r.map((c, i) => '<w:tc><w:tcPr><w:tcW w:w="' + ws[i] + '" w:type="dxa"/>' + (b.head && ri === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="EEF0F4"/>' : '') + '</w:tcPr>' + pXml(P(b.head && ri === 0 ? c.map((x) => Object.assign({}, x, { b: 1 })) : c, { a: b.right && b.right.includes(i) ? 'r' : 'l', sa: b.border ? 0 : 3, kn: 1 }), model) + '</w:tc>').join('') + '</w:tr>').join('') + '</w:tbl>' + pXml(P('', { sa: 4 }), model);
     }
     if (b.k === 'sign') {
       const half = tw((595 - model.margin * 56.7 * 2) / 2 - 8), tot = half * 2;
@@ -339,9 +346,10 @@
     const clean = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ'’]/g, '').split(/[^A-Za-z0-9]+/).filter(Boolean).map((x) => x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()).join('');
     return clean(worker.nom) + clean(worker.prenoms) || 'Travailleur';
   }
-  const fileName = (kind, d) => (kind === 'dmt' ? 'DMT_' : 'Contrat_') + baseName(d.worker) + (kind === 'dmt' ? '.xlsx' : '.docx');
+  const PREFIX = { LDC: 'LettreCommande_', PRESTATION: 'ContratPrestation_' };
+  const fileName = (kind, d) => (kind === 'dmt' ? 'DMT_' : (PREFIX[(d.job || {}).type] || 'Contrat_')) + baseName(d.worker) + (kind === 'dmt' ? '.xlsx' : '.docx');
   const MIME = { docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
 
-  const api = { zip, crc32, contractModel, modelHtml, modelDocx, dmtData, dmtCells, dmtHtml, dmtXlsx, fileName, MIME, CSS, serial };
+  const api = { H: { R, B, BU, U, P, sup, toRuns, money, frDate, K, NB }, serviceModels: {}, zip, crc32, contractModel, modelHtml, modelDocx, dmtData, dmtCells, dmtHtml, dmtXlsx, fileName, MIME, CSS, serial };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContractsExport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

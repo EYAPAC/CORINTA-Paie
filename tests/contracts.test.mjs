@@ -74,7 +74,7 @@ test('normalisation des anciens enregistrements', () => {
 });
 
 test('types de contrat : CDI, CDD à terme, CDD pour la durée d’un projet', () => {
-  assert.deepEqual(Object.keys(C.TYPE_LABEL), ['CDI', 'CDD', 'CDD_PROJET']);
+  assert.deepEqual(Object.keys(C.TYPE_LABEL), ['CDI', 'CDD', 'CDD_PROJET', 'PRESTATION', 'LDC']);
   assert.equal(C.isCdd('CDD'), true); assert.equal(C.isCdd('CDD_PROJET'), true); assert.equal(C.isCdd('CDI'), false);
   const p = filled(); p.job.type = 'CDD_PROJET'; p.job.dateFin = '2027-06-30';
   assert.equal(C.validate(p).valid, false); assert.ok(C.validate(p).errors.some((e) => /nom du projet/i.test(e)));

@@ -93,7 +93,8 @@
     const cand = imp.candidates[imp.pick] || imp.candidates[0], n = cand.items.length;
     const field = (it) => {
       const id = 'ctImp_' + it.path.replace(/\./g, '_'), v = it.value;
-      const ENUM = { 'job.type': Object.entries(K.TYPE_LABEL), 'worker.sexe': [['M', 'Masculin'], ['F', 'Féminin']], 'worker.famille': Object.entries(K.FAMILLE), 'worker.civilite': [['Monsieur', 'Monsieur'], ['Madame', 'Madame'], ['Mademoiselle', 'Mademoiselle']] };
+      const ENUM = { 'job.type': Object.entries(K.TYPE_LABEL), 'worker.sexe': [['M', 'Masculin'], ['F', 'Féminin']], 'worker.famille': Object.entries(K.FAMILLE), 'worker.civilite': [['Monsieur', 'Monsieur'], ['Madame', 'Madame'], ['Mademoiselle', 'Mademoiselle']], 'service.nature': [['brut', 'Brut'], ['net', 'Net'], ['ht', 'Hors taxes'], ['ttc', 'TTC']], 'service.remunMode': [['global', 'Prix global'], ['mensuel', 'Mensuel']] };
+      if (Array.isArray(v)) return '<textarea id="' + id + '" rows="4" data-imp-val="' + esc(it.path) + '" aria-label="' + esc(it.label) + '">' + esc(v.join('\n')) + '</textarea>';
       if (ENUM[it.path]) return '<select id="' + id + '" data-imp-val="' + esc(it.path) + '" aria-label="' + esc(it.label) + '">' + ENUM[it.path].map(([k, l]) => '<option value="' + esc(k) + '"' + (String(v) === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>';
       if (typeof v === 'boolean') return '<input id="' + id + '" type="checkbox" data-imp-val="' + esc(it.path) + '"' + (v ? ' checked' : '') + ' aria-label="' + esc(it.label) + '">';
       if (typeof v === 'number') return '<input id="' + id + '" type="number" data-imp-val="' + esc(it.path) + '" value="' + v + '" aria-label="' + esc(it.label) + '">';
@@ -124,9 +125,9 @@
     if (!str(d.worker.nom) || !str(d.worker.prenoms)) { setMsg('Saisissez le nom et les prénoms : l’enregistrement est alors automatique.', true); return false; }
     const list = contractsOf(c);
     d.updatedAt = todayISO(); if (!d.createdAt) d.createdAt = d.updatedAt;
-    if (!d.number) d.number = K.nextNumber(list, d.updatedAt);
+    if (!d.number) d.number = K.nextNumber(list, d.updatedAt, d.job.type);
     const i = list.findIndex((x) => x.id === d.id); if (i >= 0) list[i] = clone(d); else list.unshift(clone(d));
-    c.profile = Object.assign({}, c.profile, { siege: d.employer.siege, representant: d.employer.representant, qualite: d.employer.qualite, activite: d.employer.activite, signataire: d.employer.signataire, ville: d.job.lieuSignature });
+    c.profile = Object.assign({}, c.profile, { siege: d.employer.siege, representant: d.employer.representant, qualite: d.employer.qualite, activite: d.employer.activite, signataire: d.employer.signataire, ville: d.job.lieuSignature, alias: d.service && d.service.alias });
     persistOrg(); view.dirty = false;
     setMsg('Enregistré · ' + new Date().toLocaleTimeString('fr-FR') + ' · ' + d.number); refreshMeta();
     return true;
@@ -192,7 +193,7 @@
   function docFor(kind, d) {
     const co = company(), name = (K.fullName(d.worker) || 'travailleur').replace(/[^\p{L}\p{N}]+/gu, '-'), x = X();
     if (kind === 'dmt') return { html: x.dmtHtml(x.dmtData(K.dmtView(d, co), netOf(d))), title: 'DMT-' + name };
-    return { html: x.modelHtml(x.contractModel(d)), title: 'Contrat-' + (d.number || 'brouillon') + '-' + name };
+    return { html: x.modelHtml(x.contractModel(d)), title: (d.job.type === 'LDC' ? 'LettreCommande-' : d.job.type === 'PRESTATION' ? 'ContratPrestation-' : 'Contrat-') + (d.number || 'brouillon') + '-' + name };
   }
   function checked(d) {
     const v = K.validate(d);
@@ -218,8 +219,8 @@
 
   /* ───────── Formulaires ───────── */
   const fld = (path, label, o) => {
-    o = o || {}; const d = view.draft, v = getPath(d, path), type = o.type || 'text', id = 'ct_' + path.replace(/\./g, '_'), ro = o.readonly ? ' readonly' : '';
-    const REQ = ['worker.nom', 'worker.prenoms', 'job.emploi', 'job.dateEngagement', 'salary.base'], miss = view.afterImport && REQ.includes(path) && (v == null || v === '' || v === 0);
+    o = o || {}; const d = view.draft, v = path === 'service.jalons' ? K.jalonsText(getPath(d, path)) : getPath(d, path), type = o.type || 'text', id = 'ct_' + path.replace(/\./g, '_'), ro = o.readonly ? ' readonly' : '';
+    const REQ = K.isService(d.job.type) ? ['worker.nom', 'worker.prenoms', 'service.intitule', 'job.dateEngagement', 'service.montant'] : ['worker.nom', 'worker.prenoms', 'job.emploi', 'job.dateEngagement', 'salary.base'], miss = view.afterImport && REQ.includes(path) && (v == null || v === '' || v === 0);
     const cls = 'ws-field' + (o.wide ? ' wide' : '') + (view.imported.has(path) ? ' imp' : '') + (miss ? ' need' : ''), attrs = ' data-ct-f="' + path + '"' + (o.redraw ? ' data-ct-r="1"' : '') + (o.title ? ' title="' + esc(o.title) + '"' : '');
     if (type === 'select') return '<div class="' + cls + '"><label for="' + id + '">' + esc(label) + '</label><select id="' + id + '"' + attrs + '>' + o.options.map(([k, l]) => '<option value="' + esc(k) + '"' + (String(v) === String(k) ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div>';
     if (type === 'textarea') return '<div class="' + cls + ' wide"><label for="' + id + '">' + esc(label) + '</label><textarea id="' + id + '" rows="' + (o.rows || 3) + '"' + attrs + '>' + esc(Array.isArray(v) ? v.join('\n') : v) + '</textarea></div>';
@@ -238,11 +239,12 @@
   }
   function updateDerived() {
     const d = view.draft; if (!d || WS.state.module !== 'contract-new') return;
-    const n = K.salaryTotals(d.salary).base > 0 ? estimateNet(d) : null; view.net = n;
-    const a = $('ctDerived'), b = $('ctIssues'); if (a) a.innerHTML = derivedHTML(d); if (b) b.innerHTML = issuesHTML(d); refreshMeta();
+    const svc = K.isService(d.job.type), n = !svc && K.salaryTotals(d.salary).base > 0 ? estimateNet(d) : null; view.net = n;
+    const a = $('ctDerived'), b = $('ctIssues'); if (a) a.innerHTML = svc ? serviceDerivedHTML(d) : derivedHTML(d); if (b) b.innerHTML = issuesHTML(d); refreshMeta();
   }
 
   function contractTab(d) {
+    if (K.isService(d.job.type)) return serviceTab(d);
     const W = (p, l, o) => fld('worker.' + p, l, o), J = (p, l, o) => fld('job.' + p, l, o), E = (p, l, o) => fld('employer.' + p, l, o), S = (p, l, o) => fld('salary.' + p, l, o);
     const married = d.worker.famille === 'marie';
     return card('Employeur', 'Repris du profil de l’entreprise ; enregistré pour les prochains contrats.',
@@ -262,6 +264,36 @@
       '<details class="cp-card ws-form"><summary><b>Clauses du contrat</b> (reprises du modèle, modifiables)</summary><div class="ws-grid-fields">' +
       fld('clauses.references', 'V. Références aux textes (une par ligne)', { type: 'textarea', rows: 6 }) + fld('clauses.conges', 'Régime des congés payés', { type: 'textarea' }) + fld('clauses.prevoyance', 'Prévoyance sociale', { type: 'textarea' }) + fld('clauses.discipline', 'Discipline – secret professionnel', { type: 'textarea', rows: 5 }) + fld('clauses.mobilite', 'Lieu de travail – mobilité', { type: 'textarea' }) + (K.isCdd(d.job.type) ? fld('clauses.duree', 'Clause de durée (variables : {duree} {debut} {fin} {projet} {objet} {finPrevue})', { type: 'textarea', rows: 4 }) : '') +
       '</div><p class="cp-sub">Les références juridiques sont celles de votre modèle (Code du travail de 1997) : vérifiez-les si le nouveau Code du travail (loi n° 15/2026) s’applique à ce contrat.</p></details>';
+  }
+
+  function serviceDerivedHTML(d) {
+    const t = K.serviceTotals(d), s = d.service, j = d.job, dur = K.durationWords(j.dateEngagement, j.dateFin);
+    return '<div class="ct-derived"><div><span>Honoraires en toutes lettres</span><b>' + (t.montant ? esc(t.enLettres) + ' FCFA' : '—') + '</b></div><div><span>Mode de rémunération</span><b>' + (s.remunMode === 'mensuel' ? 'Mensuel : ' + money(t.montant) + ' FCFA / mois' : 'Prix global : ' + money(t.montant) + ' FCFA') + '</b></div>' + (t.jalons.length ? '<div><span>Échéances (total)</span><b>' + t.pctTotal + ' %</b></div>' : '') + (t.perdiem ? '<div><span>Per diem par nuitée</span><b>' + money(t.perdiem) + ' FCFA</b></div>' : '') + (dur ? '<div><span>Durée de la mission</span><b>' + esc(dur) + '</b></div>' : '') + '</div>';
+  }
+  function serviceTab(d) {
+    const W = (p, l, o) => fld('worker.' + p, l, o), J = (p, l, o) => fld('job.' + p, l, o), E = (p, l, o) => fld('employer.' + p, l, o), S = (p, l, o) => fld('service.' + p, l, o);
+    const ldc = d.job.type === 'LDC', clauseLabels = [['nature', 'Nature du contrat (prestation indépendante)'], ['independance', 'Indépendance et statut du prestataire'], ['fiscal', 'Fiscalité et obligations sociales'], ['normes', 'Normes d’exécution (une ligne par engagement)'], ['qualite', 'Obligation de qualité (lettre de commande)'], ['conflit', 'Conflit d’intérêts'], ['confidentialite', 'Confidentialité'], ['donnees', 'Protection des données personnelles'], ['propriete', 'Propriété intellectuelle'], ['penalites', 'Pénalités de retard'], ['forceMajeure', 'Force majeure'], ['resiliation', 'Résiliation'], ['finales', 'Dispositions finales']];
+    return card('Entreprise (commanditaire)', 'Repris du profil de l’entreprise ; enregistré pour les prochains documents.',
+      E('prefixe', 'Présentation (ex. Le Cabinet, La société)', { placeholder: 'Le Cabinet' }) + E('name', 'Raison sociale') + S('alias', 'Désignation courte dans le document', { placeholder: 'MSA', title: 'Ex. MSA : « ci-après MSA ». Mettez un nom sans article.' }) + E('siege', 'Siège social') + E('representant', 'Représenté par', { placeholder: 'Monsieur … / Madame …' }) + E('qualite', 'En sa qualité de') + E('signataire', 'Signataire (texte au-dessus de la signature)')) +
+      card('Prestataire', 'La personne qui réalise la mission : travailleur indépendant, hors Code du travail.',
+        W('civilite', 'Civilité', { type: 'select', options: [['Monsieur', 'Monsieur'], ['Madame', 'Madame'], ['Mademoiselle', 'Mademoiselle']] }) + W('sexe', 'Sexe', { type: 'select', options: [['M', 'Masculin'], ['F', 'Féminin']] }) + W('nom', 'Nom') + W('prenoms', 'Prénoms') +
+        W('naissance', 'Date de naissance', { type: 'date' }) + W('lieuNaissance', 'Lieu de naissance') + W('nationalite', 'Nationalité') + W('domicile', 'Adresse', { wide: true }) +
+        S('cin', 'CIN (carte nationale d’identité) n°') + S('ninea', 'NINEA (si le prestataire en a un)') + S('tel', 'Téléphone') + S('email', 'E-mail')) +
+      card('Mission', ldc ? 'Lettre de commande : titre de l’activité, tâches et lieu d’exécution.' : 'Contrat de prestation : objet, tâches et normes d’exécution.',
+        S('intitule', 'Titre de l’activité / de la mission', { wide: true, placeholder: 'Étude de faisabilité de …' }) + J('emploi', 'Fonction / profil du prestataire', { placeholder: 'Assistant de projet, Ingénieur HSE…' }) + S('client', 'Client final', { placeholder: 'ANAT, AGEROUTE…' }) +
+        S('contratPrincipal', 'Intitulé du contrat principal du client', { wide: true }) + S('taches', 'Tâches du prestataire (une par ligne)', { type: 'textarea', rows: 7 }) +
+        S('supervision', 'Interlocuteur de coordination (avec article)', { placeholder: 'le Chef de projet de MSA', title: 'Parlez de coordination et de validation des livrables, pas de « supervision directe » : cela évite un lien de subordination.' }) + J('lieu', 'Lieu d’exécution') + (ldc ? S('numero', 'N° de la lettre de commande', { placeholder: String(d.number || 'LDC-AAAA-001') }) : '')) +
+      card('Durée et signature', 'Dates d’exécution de la mission.',
+        J('dateEngagement', 'Début d’exécution', { type: 'date' }) + J('dateFin', 'Fin prévue', { type: 'date' }) + J('lieuSignature', 'Établi à') + J('dateContrat', 'Date du document', { type: 'date', title: 'Par défaut : date de début' }) + J('exemplaires', 'Nombre d’exemplaires', { type: 'number' })) +
+      card('Honoraires et paiement', 'Montants en FCFA. Pour limiter le risque de requalification en contrat de travail, préférez un prix global payé par livrable.',
+        S('remunMode', 'Mode de rémunération', { type: 'select', redraw: true, options: [['global', 'Prix global (forfait pour la mission)'], ['mensuel', 'Honoraires mensuels']] }) + S('montant', d.service.remunMode === 'mensuel' ? 'Honoraires par mois' : 'Montant global des honoraires', { type: 'number' }) +
+        S('nature', 'Le montant est…', { type: 'select', options: [['brut', 'Brut (avant retenues à la source)'], ['net', 'Net (retenues à la charge de l’entreprise)'], ['ht', 'Hors taxes'], ['ttc', 'Toutes taxes comprises']] }) + S('perdiem', 'Per diem par nuitée (0 = aucun)', { type: 'number' }) +
+        S('jalons', 'Échéances de paiement : « pourcentage | livrable », une par ligne (total = 100)', { type: 'textarea', rows: 4, title: 'Exemple : 30 | Livrable 1 : rapport de démarrage' }) + S('delaiPaiement', 'Délai de paiement (jours)', { type: 'number' }) + S('apresClient', 'Paiement conditionné au paiement du client', { type: 'checkbox' }) +
+        '<div class="wide"><b>Moyens de paiement acceptés</b></div>' + fld('service.moyens.virement', 'Virement bancaire', { type: 'checkbox' }) + fld('service.moyens.cheque', 'Chèque', { type: 'checkbox' }) + fld('service.moyens.mobile', 'Paiement mobile', { type: 'checkbox' }) + '<div class="wide" id="ctDerived">' + serviceDerivedHTML(d) + '</div>') +
+      card('Retards, résiliation et litiges', 'Les pénalités ne s’appliquent que si le taux est supérieur à 0.',
+        S('penaliteTaux', 'Pénalité de retard (‰ par jour, 0 = aucune)', { type: 'number' }) + S('penalitePlafond', 'Plafond des pénalités (% des honoraires)', { type: 'number' }) + S('preavis', 'Préavis de résiliation (jours)', { type: 'number' }) + S('litige', 'Règlement des litiges', { type: 'select', options: [['tribunal', 'Amiable puis juridictions de Dakar'], ['arbitrage', 'Amiable puis arbitrage (Acte uniforme OHADA)']] })) +
+      '<details class="cp-card ws-form"><summary><b>Clauses du document</b> (modèle amélioré, modifiables : une ligne = un paragraphe)</summary><div class="ws-grid-fields">' + clauseLabels.map(([k, l]) => fld('service.clauses.' + k, l, { type: 'textarea', rows: 4 })).join('') +
+      '</div><p class="cp-sub">Variables : {alias} {de} {preavis} {taux} {plafond}. Ces clauses s’appuient sur le droit sénégalais (Code des obligations civiles et commerciales, loi n° 2008-09 sur le droit d’auteur, loi n° 2008-12 sur les données personnelles) ; faites-les valider par un conseil juridique avant usage, en particulier au regard du nouveau Code du travail (septembre 2026) pour écarter tout risque de requalification.</p></details>';
   }
 
   function dmtTab(d) {
@@ -290,16 +322,18 @@
     const c = company(), d = view.draft; if (!c || !d || WS.state.module !== 'contract-new') return;
     const s = $('ctSub'); if (s) s.innerHTML = subText(c, d);
     const p = $('ctPick'); if (p) p.innerHTML = pickOptions(c, d);
-    const m = $('ctMissing'); if (m) { const miss = K.dmtMissing(d, c); m.innerHTML = miss.length ? '<b>Informations encore à compléter (recommandé) :</b> ' + miss.map(esc).join(' · ') : '✔ Les informations usuelles de la DMT sont renseignées.'; }
+    const m = !K.isService(d.job.type) && $('ctMissing'); if (m) { const miss = K.dmtMissing(d, c); m.innerHTML = miss.length ? '<b>Informations encore à compléter (recommandé) :</b> ' + miss.map(esc).join(' · ') : '✔ Les informations usuelles de la DMT sont renseignées.'; }
   }
   function elaborationHTML(c) {
-    const d = view.draft, list = contractsOf(c), saved = list.some((x) => x.id === d.id), dmtOk = d.dmt && d.dmt.status === 'établie';
+    const d = view.draft, list = contractsOf(c), saved = list.some((x) => x.id === d.id), dmtOk = d.dmt && d.dmt.status === 'établie', svc = K.isService(d.job.type);
+    if (svc && view.tab === 'dmt') view.tab = 'contract';
+    const typeSel = '<div class="ws-field"><label for="ctTypeSel">Type de document</label><select id="ctTypeSel" data-ct-f="job.type" data-ct-r="1">' + Object.entries(K.TYPE_LABEL).map(([k, l]) => '<option value="' + k + '"' + (d.job.type === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div>';
     const picker = '<div class="ws-field"><label for="ctPick">Contrat</label><select id="ctPick" data-ct-pick="1">' + pickOptions(c, d) + '</select></div>';
-    return '<div class="ws-page-head"><div><h1>Élaboration de contrat</h1><p id="ctSub">' + subText(c, d) + '</p></div><div class="ws-tools">' + picker +
+    return '<div class="ws-page-head"><div><h1>Élaboration de contrat</h1><p id="ctSub">' + subText(c, d) + '</p></div><div class="ws-tools">' + typeSel + picker +
       '<div class="ws-field"><label for="ctStatusSel">Statut</label><select id="ctStatusSel" data-ct-f="status">' + K.STATUS.map((s) => '<option' + (d.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div></div></div>' +
-      '<div class="ct-tabs" role="tablist"><button type="button" role="tab" aria-selected="' + (view.tab === 'contract') + '" data-ct="tab:contract">1. Contrat de travail</button><button type="button" role="tab" aria-selected="' + (view.tab === 'dmt') + '" data-ct="tab:dmt">2. DMT' + (dmtOk ? ' ✔' : '') + '</button><span id="ctStatus" class="cp-sub" role="status">' + esc(view.msg) + '</span></div>' +
+      '<div class="ct-tabs" role="tablist"><button type="button" role="tab" aria-selected="' + (view.tab === 'contract') + '" data-ct="tab:contract">1. ' + (svc ? esc(K.TYPE_LABEL[d.job.type]) : 'Contrat de travail') + '</button>' + (svc ? '' : '<button type="button" role="tab" aria-selected="' + (view.tab === 'dmt') + '" data-ct="tab:dmt">2. DMT' + (dmtOk ? ' ✔' : '') + '</button>') + '<span id="ctStatus" class="cp-sub" role="status">' + esc(view.msg) + '</span></div>' +
       '<div class="ct-bar">' + (view.tab === 'contract'
-        ? '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:contract">' + icon('eye') + 'Aperçu du contrat</button><button type="button" class="cp-btn" data-ct="download:contract">' + icon('download') + 'Télécharger Word (.docx)</button><button type="button" class="cp-btn" data-ct="print:contract">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="tab:dmt">Créer la DMT →</button><button type="button" class="cp-btn" data-ct="bulletin">' + icon('file2') + 'Préparer le bulletin de paie</button>'
+        ? '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:contract">' + icon('eye') + 'Aperçu du contrat</button><button type="button" class="cp-btn" data-ct="download:contract">' + icon('download') + 'Télécharger Word (.docx)</button><button type="button" class="cp-btn" data-ct="print:contract">' + icon('printer') + 'Imprimer / PDF</button>' + (svc ? '' : '<button type="button" class="cp-btn" data-ct="tab:dmt">Créer la DMT →</button><button type="button" class="cp-btn" data-ct="bulletin">' + icon('file2') + 'Préparer le bulletin de paie</button>')
         : '<button type="button" class="cp-btn primary" data-ct="save">' + icon('check') + 'Enregistrer</button><button type="button" class="cp-btn" data-ct="preview:dmt">' + icon('eye') + 'Aperçu de la DMT</button><button type="button" class="cp-btn" data-ct="download:dmt">' + icon('download') + 'Télécharger Excel (.xlsx)</button><button type="button" class="cp-btn" data-ct="print:dmt">' + icon('printer') + 'Imprimer / PDF</button><button type="button" class="cp-btn" data-ct="dmt-done">' + (dmtOk ? 'DMT établie ✔ (rouvrir)' : 'Marquer la DMT comme établie') + '</button><button type="button" class="cp-btn" data-ct="tab:contract">← Retour au contrat</button>') + '</div>' +
       (view.tab === 'contract' ? importHTML() : '') + '<div id="ctIssues">' + issuesHTML(d) + '</div>' + (view.tab === 'contract' ? contractTab(d) : dmtTab(d));
   }
@@ -315,13 +349,13 @@
     const kpi = (l, v) => '<div class="ws-sum"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>';
     const act = (a, ic, label, id) => '<button type="button" class="cp-act' + (a === 'del' ? ' danger' : '') + '" title="' + esc(label) + '" aria-label="' + esc(label) + '" data-ct="' + a + ':' + esc(id) + '">' + icon(ic) + '</button>';
     const body = rows.map((x) => {
-      const dm = DMT_LABEL(x), te = K.trialEnd(x), end = K.isCdd(x.job.type) ? (x.job.type === 'CDD_PROJET' ? 'Fin du projet' + (x.job.projetNom ? ' « ' + x.job.projetNom + ' »' : '') + (x.job.dateFin ? ' : ' + frDate(x.job.dateFin) : '') : frDate(x.job.dateFin)) : (te ? 'Essai jusqu’au ' + frDate(te) : '—');
+      const dm = K.isService(x.job.type) ? ['—', 'neutral'] : DMT_LABEL(x), te = K.trialEnd(x), end = K.isService(x.job.type) ? (x.job.dateFin ? 'Fin : ' + frDate(x.job.dateFin) : '—') : K.isCdd(x.job.type) ? (x.job.type === 'CDD_PROJET' ? 'Fin du projet' + (x.job.projetNom ? ' « ' + x.job.projetNom + ' »' : '') + (x.job.dateFin ? ' : ' + frDate(x.job.dateFin) : '') : frDate(x.job.dateFin)) : (te ? 'Essai jusqu’au ' + frDate(te) : '—');
       return '<tr><td class="nw">' + esc(x.number || '—') + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(K.TYPE_SHORT[x.job.type] || x.job.type) + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
         '<td><select class="ct-mini" aria-label="Statut du contrat de ' + esc(K.fullName(x.worker)) + '" data-ct-status="' + esc(x.id) + '">' + K.STATUS.map((s) => '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></td><td><span class="cp-badge ' + dm[1] + '">' + dm[0] + '</span></td>' +
-        '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('dl-contract', 'download', 'Télécharger le contrat (Word)', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
+        '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('dl-contract', 'download', 'Télécharger le contrat (Word)', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + (K.isService(x.job.type) ? '' : act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id)) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
     }).join('');
     return '<div class="ws-page-head"><div><h1>Gestion des contrats</h1><p>' + esc(c.name) + ' · ' + all.length + ' contrat' + (all.length > 1 ? 's' : '') + '</p></div><div class="ws-tools"><button type="button" class="cp-btn primary" data-ct="new">' + icon('plus') + 'Nouveau contrat</button></div></div>' +
-      '<div class="ws-sums">' + kpi('Contrats', String(all.length)) + kpi('En cours', String(all.filter((x) => x.status === 'en cours').length)) + kpi('Brouillons', String(all.filter((x) => x.status === 'brouillon').length)) + kpi('DMT à établir', String(all.filter((x) => x.status !== 'terminé' && !(x.dmt && x.dmt.status === 'établie')).length)) + '</div>' +
+      '<div class="ws-sums">' + kpi('Contrats', String(all.length)) + kpi('En cours', String(all.filter((x) => x.status === 'en cours').length)) + kpi('Brouillons', String(all.filter((x) => x.status === 'brouillon').length)) + kpi('DMT à établir', String(all.filter((x) => x.status !== 'terminé' && !K.isService(x.job.type) && !(x.dmt && x.dmt.status === 'établie')).length)) + '</div>' +
       (alerts.length ? '<article class="cp-card"><div class="cp-card-head"><h2>Alertes</h2></div><ul class="cp-alerts">' + alerts.map((a) => '<li class="cp-alert ' + (a.level === 'info' ? 'info' : a.level === 'late' ? 'danger' : 'warn') + '"><span class="ico">' + icon(a.level === 'info' ? 'clock' : 'alert') + '</span><button type="button" class="main-act" data-ct="edit:' + esc(a.id) + '">' + esc(a.text) + '</button><span></span></li>').join('') + '</ul></article>' : '') +
       '<div class="ws-tools ws-filters"><div class="ws-field"><label for="ctQ">Rechercher</label><input id="ctQ" type="search" placeholder="Nom, emploi ou n°" value="' + esc(view.q) + '" autocomplete="off"></div><div class="ws-field"><label for="ctFS">Statut</label><select id="ctFS"><option value="">Tous</option>' + K.STATUS.map((s) => '<option' + (view.fStatus === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div><div class="ws-field"><label for="ctFT">Type</label><select id="ctFT"><option value="">Tous</option>' + Object.entries(K.TYPE_SHORT).map(([k, l]) => '<option value="' + k + '"' + (view.fType === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div></div>' +
       '<article class="cp-card">' + (rows.length ? '<div class="cp-table-wrap"><table class="cp-table" style="min-width:900px"><thead><tr><th>N°</th><th>Travailleur</th><th>Type</th><th>Engagement</th><th>Échéance</th><th>Statut</th><th>DMT</th><th>Actions</th></tr></thead><tbody>' + body + '</tbody></table></div>'
@@ -353,7 +387,7 @@
     else if (a === 'dmt') openDraft(arg, 'dmt');
     else if (a === 'dl-contract') { const x = list.find((k) => k.id === arg); if (x) downloadDoc('contract', K.normalize(clone(x), c)); }
     else if (a === 'print-contract') { const x = list.find((k) => k.id === arg); if (x) openDoc('contract', K.normalize(clone(x), c), true); }
-    else if (a === 'dup') { const x = list.find((k) => k.id === arg); if (x) { const n = K.normalize(clone(x), c); Object.assign(n, { id: K.blankContract(c, '').id, number: '', status: 'brouillon', dmt: null, createdAt: todayISO() }); Object.assign(n.worker, { nom: '', prenoms: '', naissance: '', lieuNaissance: '', pere: '', mere: '', domicile: '', nomsEpouses: '', nomsEnfants: '' }); n.job.dateEngagement = ''; n.job.dateContrat = ''; n.job.dateFin = ''; view.draft = n; view.tab = 'contract'; view.msg = 'Modèle dupliqué : renseignez le nouveau travailleur.'; WS.go('contract-new'); } }
+    else if (a === 'dup') { const x = list.find((k) => k.id === arg); if (x) { const n = K.normalize(clone(x), c); Object.assign(n, { id: K.blankContract(c, '').id, number: '', status: 'brouillon', dmt: null, createdAt: todayISO() }); Object.assign(n.worker, { nom: '', prenoms: '', naissance: '', lieuNaissance: '', pere: '', mere: '', domicile: '', nomsEpouses: '', nomsEnfants: '' }); n.job.dateEngagement = ''; n.job.dateContrat = ''; n.job.dateFin = ''; Object.assign(n.service, { cin: '', tel: '', email: '', ninea: '', numero: '' }); view.draft = n; view.tab = 'contract'; view.msg = 'Modèle dupliqué : renseignez le nouveau travailleur.'; WS.go('contract-new'); } }
     else if (a === 'del') { const x = list.find((k) => k.id === arg); if (x && confirm('Supprimer définitivement le contrat ' + (x.number || '') + ' de ' + K.fullName(x.worker) + ' ?')) { c.contracts = list.filter((k) => k.id !== arg); persistOrg(); if (view.draft && view.draft.id === arg) view.draft = null; toast('Contrat supprimé'); render(); } }
     else return false;
     return true;
@@ -369,7 +403,7 @@
     if (t.id === 'ctFile') { const f = t.files && t.files[0]; t.value = ''; handleFile(f); return true; }
     if (t.id === 'ctImpPick' && view.imp) { view.imp.pick = Number(t.value) || 0; view.imp.off = new Set(); render(); return true; }
     if (t.dataset.impChk && view.imp) { if (t.checked) view.imp.off.delete(t.dataset.impChk); else view.imp.off.add(t.dataset.impChk); return true; }
-    if (t.dataset.impVal && view.imp) { const c = view.imp.candidates[view.imp.pick], it = c.items.find((i) => i.path === t.dataset.impVal); if (it) { it.value = typeof it.value === 'boolean' ? t.checked : typeof it.value === 'number' ? Number(t.value) || 0 : t.value; c.fields[it.path] = it.value; } return true; }
+    if (t.dataset.impVal && view.imp) { const c = view.imp.candidates[view.imp.pick], it = c.items.find((i) => i.path === t.dataset.impVal); if (it) { it.value = typeof it.value === 'boolean' ? t.checked : typeof it.value === 'number' ? Number(t.value) || 0 : Array.isArray(it.value) ? String(t.value).split(/\n+/).map((s) => s.trim()).filter(Boolean) : t.value; c.fields[it.path] = it.value; } return true; }
     if (t.dataset.ctPick !== undefined) { if (t.value) openDraft(t.value, view.tab); else newDraft(); return true; }
     if (t.dataset.ctF) { applyField(t); if (t.dataset.ctR) render(); setTimeout(updateDerived, 30); return true; }
     return false;
@@ -377,7 +411,8 @@
   function applyField(t) {
     const p = t.dataset.ctF; let v = t.type === 'checkbox' ? t.checked : t.value;
     if (t.type === 'number') v = v === '' ? 0 : Number(v);
-    if (p === 'clauses.references') v = String(v).split(/\n+/).map((s) => s.trim()).filter(Boolean);
+    if (p === 'clauses.references' || p === 'service.taches') v = String(v).split(/\n+/).map((s) => s.trim()).filter(Boolean);
+    if (p === 'service.jalons') v = K.parseJalons(v);
     if (p.indexOf('dmt.') === 0 && !view.draft.dmt) view.draft.dmt = {};
     if (p === 'job.type') K.switchType(view.draft, v); else setPath(view.draft, p, v);
     view.dirty = true; queueCommit();
