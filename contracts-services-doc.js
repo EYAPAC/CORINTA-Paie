@@ -12,7 +12,8 @@
   /** Variables des clauses : {alias} {de} {preavis} {taux} {plafond}. */
   function fillText(text, s) {
     const K = getK();
-    return String(text || '').replace(/\{alias\}/g, str(s.alias)).replace(/\{de\}/g, K.deAlias(s.alias)).replace(/\{preavis\}/g, String(Math.round(K.num(s.preavis)) || 15))
+    const al = str(s.alias), aAl = /^les +/i.test(al) ? al.replace(/^les +/i, 'aux ') : /^le +/i.test(al) ? al.replace(/^le +/i, 'au ') : 'à ' + al;
+    return String(text || '').replace(/à \{alias\}/g, aAl).replace(/\{alias\}/g, al).replace(/\{de\}/g, K.deAlias(s.alias)).replace(/\{preavis\}/g, String(Math.round(K.num(s.preavis)) || 15))
       .replace(/\{taux\}/g, String(K.num(s.penaliteTaux))).replace(/\{plafond\}/g, String(K.num(s.penalitePlafond)));
   }
   function context(d) {
@@ -100,6 +101,9 @@
     blocks.push(body('Les prestations sont exécutées ' + (str(j.lieu) ? 'à ' + str(j.lieu) : 'au lieu convenu entre les parties') + '. ' + durationText(c) + ' Le contrat ne se renouvelle pas tacitement : toute prolongation fait l’objet d’un avenant écrit.'));
 
     blocks.push(art('Indépendance et statut du Prestataire')); blocks.push(...clause(c, 'independance'));
+    blocks.push(art('Régularité de l’activité du Prestataire')); blocks.push(...clause(c, 'regularite'));
+    blocks.push(art('Personnel et sous-traitance')); blocks.push(...clause(c, 'personnel'));
+    if (s.risques) { blocks.push(art('Sécurité et santé au travail')); blocks.push(...clause(c, 'securite')); }
     blocks.push(art('Conflit d’intérêts')); blocks.push(...clause(c, 'conflit'));
     blocks.push(art('Confidentialité et protection des données personnelles')); blocks.push(...clause(c, 'confidentialite'), ...clause(c, 'donnees'));
     blocks.push(art('Propriété intellectuelle')); blocks.push(...clause(c, 'propriete'));
@@ -170,8 +174,12 @@
     blocks.push(art('Obligations du titulaire'));
     blocks.push(sub('6.1.', 'Réalisation de la prestation')); blocks.push(...clause(c, 'qualite'));
     blocks.push(sub('6.2.', 'Indépendance')); blocks.push(...clause(c, 'independance'));
-    blocks.push(sub('6.3.', 'Confidentialité, données personnelles et propriété des livrables')); blocks.push(...clause(c, 'confidentialite'), ...clause(c, 'donnees'), ...clause(c, 'propriete'));
-    blocks.push(sub('6.4.', 'Conflit d’intérêts')); blocks.push(...clause(c, 'conflit'));
+    blocks.push(sub('6.3.', 'Régularité de l’activité du Prestataire')); blocks.push(...clause(c, 'regularite'));
+    blocks.push(sub('6.4.', 'Personnel et sous-traitance')); blocks.push(...clause(c, 'personnel'));
+    let k6 = 4; const nx = () => '6.' + (++k6) + '.';
+    if (s.risques) { blocks.push(sub(nx(), 'Sécurité et santé au travail')); blocks.push(...clause(c, 'securite')); }
+    blocks.push(sub(nx(), 'Confidentialité, données personnelles et propriété des livrables')); blocks.push(...clause(c, 'confidentialite'), ...clause(c, 'donnees'), ...clause(c, 'propriete'));
+    blocks.push(sub(nx(), 'Conflit d’intérêts')); blocks.push(...clause(c, 'conflit'));
 
     blocks.push(art('Pénalités'));
     if (c.K.num(s.penaliteTaux) > 0) blocks.push(...clause(c, 'penalites'));

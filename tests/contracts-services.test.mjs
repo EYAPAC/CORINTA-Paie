@@ -137,7 +137,7 @@ test('contrat de prestation : articles numérotés dans l’ordre, mentions lég
   const d = make('PRESTATION', (c) => { c.service.remunMode = 'global'; c.service.montant = 2000000; c.service.penaliteTaux = 1; }), w = unesc(wtext(docx(d)['word/document.xml']));
   const arts = [...w.matchAll(/Article (\d+) :/g)].map((m) => Number(m[1])); assert.ok(arts.length >= 14); assert.deepEqual(arts, arts.map((_, i) => i + 1));
   ['loi n° 2008-12 du 25 janvier 2008', 'loi n° 2008-09 du 25 janvier 2008', 'Code des obligations civiles et commerciales', 'ni un contrat de travail', 'deux millions (2 000 000) francs CFA', 'pour mille', 'Force majeure', 'juridictions compétentes de Dakar'].forEach((s) => assert.ok(w.replace(/\u00a0/g, ' ').includes(s), s));
-  assert.ok(!/période d’essai|salaire|DMT|bulletin|congés payés|Code du travail/i.test(w), 'aucune notion de contrat de travail');
+  assert.ok(!/période d’essai|DMT|bulletin|convention collective|licenciement|L\d{2,3}\b/i.test(w), 'aucune notion propre au contrat de travail');
   assert.ok(/en qualité d’Assistante de projet/.test(w)); assert.ok(/au Chef de mission adjoint/.test(w));   // élisions et contractions
 });
 
@@ -195,4 +195,40 @@ test('aller-retour : un document généré par le logiciel se ré-importe sans p
     assert.equal(f['service.client'], 'AGEROUTE', type); assert.deepEqual(f['service.taches'], src.service.taches, type);
     if (type === 'LDC') { assert.equal(f['service.cin'], '2 000 0000 00000'); assert.equal(f['service.email'], 'm.sarr@exemple.sn'); assert.equal(f['service.perdiem'], 25000); assert.equal(f['job.emploi'], 'Assistante de projet'); }
   }
+});
+
+/* ───────── Code du travail (loi n° 2026-18 du 3 septembre 2026) : seulement les articles applicables, lus au Journal officiel n° 7931 ───────── */
+test('Code du travail : articles réellement applicables cités, aucun article inutile ni ancien', () => {
+  const norm = (d) => unesc(wtext(docx(d)['word/document.xml'])).replace(/ /g, ' ');
+  for (const type of ['PRESTATION', 'LDC']) {
+    const w = norm(make(type));
+    ['article 3 du Code du travail (loi n° 2026-18 du 3 septembre 2026)', 'articles 284 et 285', 'articles 287 et 291', 'article 291', 'articles 288 et 289'].forEach((s) => assert.ok(w.includes(s), type + ' : ' + s));
+    const cited = [...w.matchAll(/articles? ([d ,et]+?) du Code du travail|(articles? ([d ,et]+?))/g)].flatMap((m) => (m[1] || m[2]).match(/d+/g)).map(Number);
+    const allowed = new Set([3, 284, 285, 287, 288, 289, 291, 313, 314, 316]); cited.forEach((n) => assert.ok(allowed.has(n), type + ' : article non vérifié ' + n));
+    assert.ok(!/article 105|loi n° 97-17|travailleur étranger|visa/i.test(w), type + ' : aucune référence hors sujet');
+    assert.ok(!/articles? (313|314|316)/.test(w), type + ' : clause de sécurité absente par défaut');
+  }
+});
+
+test('clause de sécurité sur site (articles 313, 314, 316) : ajoutée seulement si la mission le justifie', () => {
+  for (const type of ['PRESTATION', 'LDC']) {
+    const w = unesc(wtext(docx(make(type, (c) => { c.service.risques = true; }))['word/document.xml']));
+    ['article 313 du Code du travail', 'article 314', 'article 316', 'Sécurité et santé au travail'].forEach((s) => assert.ok(w.includes(s), type + ' : ' + s));
+    const arts = [...w.matchAll(/Article (\d+) :/g)].map((m) => Number(m[1])); assert.deepEqual(arts, arts.map((_, k) => k + 1), type + ' : articles consécutifs');
+  }
+  const h = unesc(wtext(docx(make('LDC', (c) => { c.service.risques = true; }))['word/document.xml']));
+  const subs = [...h.matchAll(/6.(d). /g)].map((m) => Number(m[1])); assert.deepEqual(subs, subs.map((_, i) => i + 1), 'sous-articles 6.x consécutifs');
+});
+
+test('régularité du prestataire : justificatifs avant paiement, personnel et sous-traitance encadrés', () => {
+  const w = unesc(wtext(docx(make('PRESTATION'))['word/document.xml']));
+  assert.ok(/avant le premier paiement/.test(w)); assert.ok(/peut suspendre tout règlement/.test(w)); assert.ok(/attestation de régularité sociale/.test(w)); assert.ok(/ne constitue pas une opération de marchandage/.test(w));
+  assert.ok(/sans recourir à des salariés ni à des sous-traitants/.test(w)); assert.ok(/garantit CTA contre toute réclamation/.test(w));
+  assert.ok(K.validate(make('PRESTATION')).warnings.some((x) => /travail dissimulé/.test(x)));
+  assert.ok(!K.validate(make('PRESTATION', (c) => { c.service.ninea = '123456789'; })).warnings.some((x) => /travail dissimulé/.test(x)));
+});
+
+test('contractions de l’entreprise dans les clauses : « à le Cabinet » devient « au Cabinet »', () => {
+  const w = unesc(wtext(docx(make('PRESTATION', (c) => { c.service.alias = 'le Cabinet'; }))['word/document.xml']));
+  assert.ok(!/ à le /.test(w)); assert.ok(/remet au Cabinet/.test(w));
 });
