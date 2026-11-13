@@ -73,6 +73,7 @@
     blocks.push(art('Objet du contrat'));
     blocks.push(body([c.alias + ' requiert les services de ' + c.civ + ' ', B(c.nom), ', ci-après le Prestataire, en qualité ', B(dd(str(j.emploi) || '………')), ', pour la mission suivante : ', B(str(s.intitule) || '………'), '.']));
     if (str(s.client) || str(s.contratPrincipal)) blocks.push(body([c.alias + ' s’est vu confier par ' + (str(s.client) || 'son client') + ' (ci-après « le Client »)' + (str(s.contratPrincipal) ? ', aux termes du contrat de prestation intitulé « ' + str(s.contratPrincipal) + ' »' : '') + ', une mission dans le cadre de laquelle intervient le Prestataire.']));
+    if (str(s.projet)) blocks.push(body('Cette mission s’inscrit dans le projet « ' + str(s.projet) + ' ».'));
     blocks.push(...clause(c, 'nature'));
 
     blocks.push(art('Missions et responsabilités du Prestataire'));
@@ -138,7 +139,7 @@
       row('Adresse', str(w.domicile)), row('Tél / Mail', [str(s.tel), str(s.email)].filter(Boolean).join(' · ')), row('CIN / NINEA', [str(s.cin) && 'CIN ' + str(s.cin), str(s.ninea) && 'NINEA ' + str(s.ninea)].filter(Boolean).join(' · ')),
       row('Titre de l’activité', '« ' + (str(s.intitule) || '………') + ' »'), row('Fonction du prestataire', str(j.emploi)),
       row('Durée des prestations', c.K.durationWords(j.dateEngagement, j.dateFin) || '—'), row('Personne responsable', supervisor(c)), row('Lieu d’exécution', str(j.lieu)),
-      row('Début d’exécution', c.K.longDate(j.dateEngagement)), row('Fin prévue', c.K.longDate(j.dateFin)), row('Payeur', c.alias)] });
+      row('Début d’exécution', c.K.longDate(j.dateEngagement)), row('Fin prévue', c.K.longDate(j.dateFin)), row('Projet', str(s.projet)), row('Payeur', c.alias)] });
 
     blocks.push(art('Parties contractantes'));
     blocks.push(body([employerRuns(c), ', ci-après « ', B(c.alias), ' »,']), P('ET', { a: 'c', sa: 4 }), body([providerRuns(c), ', ci-après « ', B('le Prestataire'), ' ».']));
@@ -194,6 +195,27 @@
     return { kind: 'contract', blocks, font: 'Arial', sz: 10, margin: 2.5 };
   }
 
+  /* ───────── Bulletin de paiement d'honoraires (prestataire indépendant : ce n'est pas un bulletin de salaire) ───────── */
+  function honorairesModel(d, rec) {
+    const c = context(d), s = d.service, K = c.K, h = K.computeHonoraires(d, rec), blocks = [], kind = d.job.type === 'LDC' ? 'Lettre de commande' : 'Contrat de prestation';
+    const sgn = (n) => (n < 0 ? '− ' : '') + money(Math.abs(n)), row = (l, v) => [[B(l)], [R(v || '—')]];
+    blocks.push({ k: 'box', lines: ['BULLETIN DE PAIEMENT', 'D’HONORAIRES'] });
+    blocks.push(P([R('Prestataire indépendant : ce document n’est pas un bulletin de salaire.', { i: 1, sz: 9 })], { a: 'c', sb: 4, sa: 10 }));
+    blocks.push({ k: 'tab', border: 1, widths: [150, 303], rows: [
+      row('N° du bulletin', str(rec.numero)), row('Date d’émission', K.longDate(rec.date)), row('Entreprise', [d.employer.name, d.employer.siege].filter(Boolean).join(' — ')),
+      row('Prestataire', c.civ + ' ' + c.nom + (str(s.ninea) ? ' (NINEA ' + str(s.ninea) + ')' : '')), row(kind, str(d.number) + (str(s.numero) ? ' (n° ' + str(s.numero) + ')' : '')),
+      row('Projet', str(s.projet)), row('Client', str(s.client)), row('Mission', str(s.intitule)), row('Période / objet', str(rec.periode)),
+      row('Rémunération prévue', s.remunMode === 'mensuel' ? 'Honoraires mensuels : ' + money(c.totals.montant) + ' FCFA' : 'Prix global : ' + money(c.totals.montant) + ' FCFA')] });
+    blocks.push(P('', { sa: 8 }));
+    blocks.push({ k: 'tab', border: 1, head: 1, widths: [215, 128, 110], right: [2], rows: [[[R('Désignation')], [R('Détail')], [R('Montant (FCFA)')]]].concat(
+      h.lines.map((l) => [[R(l.label)], [R(l.detail || '')], [R(l.amount === 0 && l.info != null ? '(' + money(l.info) + ')' : sgn(l.amount))]]), [[[B('NET À PAYER')], [R('')], [B(money(h.net))]]]) });
+    blocks.push(P(['Arrêté le présent bulletin à la somme de ', B(h.netEnLettres + ' francs CFA'), '.'], { a: 'l', sb: 4, sa: 8, kn: 1 }));
+    const nat = { brut: 'Honoraires bruts : la retenue à la source, lorsqu’elle s’applique, est déduite et reversée à l’administration fiscale par ' + c.alias + '.', net: 'Honoraires convenus nets : les retenues à la source éventuelles sont supportées par ' + c.alias + ' et ne sont pas déduites.', ht: 'Honoraires hors taxes : la TVA, si le prestataire y est assujetti, est ajoutée au taux indiqué.', ttc: 'Honoraires toutes taxes comprises.' }[s.nature || 'brut'];
+    blocks.push(P([R('Calcul établi d’après le ' + kind.toLowerCase() + ' ' + str(d.number) + (s.remunMode === 'mensuel' ? ' (prorata sur la base d’un mois de 30 jours). ' : '. ') + nat + ' Les impôts, taxes et cotisations propres à l’activité indépendante du prestataire restent à sa charge, conformément au contrat.', { sz: 9 })], { a: 'j', sa: 14 }));
+    blocks.push({ k: 'sign', cols: [[P([B('Le Prestataire')], { a: 'c', sa: 36, kn: 1 }), P(c.nom, { a: 'c', sa: 2 }), P('(Bon pour acquit)', { a: 'c', sz: 9 })], [P([B(str(d.employer.signataire) || 'Le Directeur Général')], { a: 'c', sa: 36, kn: 1 }), P(str(d.employer.representant).replace(/^(monsieur|madame|mademoiselle|m\.|mme)\s+/i, ''), { a: 'c', sa: 2 })]] });
+    return { kind: 'contract', blocks, font: 'Arial', sz: 10, margin: 2.5 };
+  }
+  X.honorairesModel = honorairesModel;
   X.serviceModels.PRESTATION = prestationModel;
   X.serviceModels.LDC = ldcModel;
 })(typeof window !== 'undefined' ? window : globalThis);

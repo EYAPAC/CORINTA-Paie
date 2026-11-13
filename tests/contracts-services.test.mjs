@@ -36,7 +36,7 @@ function make(type, over) {
   const d = K.blankContract(company, '2026-11-13'); K.switchType(d, type);
   Object.assign(d.worker, { civilite: 'Madame', sexe: 'F', nom: 'Sarr', prenoms: 'Mame Awa', naissance: '1990-05-12', lieuNaissance: 'Thiès', nationalite: 'Sénégalaise', domicile: '12 rue Test, Dakar' });
   Object.assign(d.job, { emploi: 'Assistante de projet', dateEngagement: '2026-12-01', dateFin: '2027-05-31', lieu: 'Kaffrine', lieuSignature: 'Dakar', dateContrat: '2026-11-20' });
-  Object.assign(d.service, { intitule: 'Appui à la mise en œuvre du plan d’action', client: 'AGEROUTE', contratPrincipal: 'Mission de maîtrise d’œuvre sociale', taches: ['Accueil des personnes affectées', 'Enregistrement des plaintes', 'Rédaction des rapports'], supervision: 'le Chef de mission adjoint', montant: 180000, remunMode: 'mensuel', nature: 'net', cin: '2 000 0000 00000', tel: '77 000 00 00' });
+  Object.assign(d.service, { projet: 'Projet Test', intitule: 'Appui à la mise en œuvre du plan d’action', client: 'AGEROUTE', contratPrincipal: 'Mission de maîtrise d’œuvre sociale', taches: ['Accueil des personnes affectées', 'Enregistrement des plaintes', 'Rédaction des rapports'], supervision: 'le Chef de mission adjoint', montant: 180000, remunMode: 'mensuel', nature: 'net', cin: '2 000 0000 00000', tel: '77 000 00 00' });
   if (over) over(d); return d;
 }
 
@@ -60,7 +60,7 @@ test('types : prestation et lettre de commande sont des contrats de service, pas
 
 test('validation des prestations : champs obligatoires, échéances = 100 %, pas de salaire exigé', () => {
   const b0 = K.blankContract(company, ''); K.switchType(b0, 'PRESTATION'); const v0 = K.validate(b0);
-  ['nom du prestataire', 'prénoms du prestataire', 'intitulé de la mission', 'date de début', 'montant des honoraires'].forEach((k) => assert.ok(v0.errors.some((e) => e.toLowerCase().includes(k)), k));
+  ['nom du prestataire', 'prénoms du prestataire', 'intitulé de la mission', 'projet', 'date de début', 'montant des honoraires'].forEach((k) => assert.ok(v0.errors.some((e) => e.toLowerCase().includes(k)), k));
   assert.ok(!v0.errors.some((e) => /salaire/i.test(e)));
   const d = make('PRESTATION'); assert.equal(K.validate(d).valid, true);
   d.service.jalons = K.parseJalons('30 | A\n40 | B'); assert.ok(K.validate(d).errors.some((e) => /100 %/.test(e)));
@@ -127,7 +127,7 @@ test('import d’une lettre de commande Word : fiche, durée convertie en date d
 
 test('importer puis appliquer : contrat de prestation valide et prêt à imprimer', () => {
   const [c] = I.extract(I.docxXmlToBlocks(docXml(LDC))), d = K.blankContract(company, '2026-11-13');
-  I.apply(d, c.fields); K.switchType(d, c.fields['job.type']);
+  I.apply(d, c.fields); K.switchType(d, c.fields['job.type']); d.service.projet = 'Projet Import';
   assert.equal(d.job.type, 'LDC'); assert.equal(d.service.montant, 2000000); assert.equal(K.validate(d).valid, true);
   Object.values(docx(d)).forEach(wellFormed);
 });

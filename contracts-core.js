@@ -110,7 +110,7 @@
   };
   const serviceDefaults = (p, name) => ({
     alias: str(p && p.alias) || deriveAlias(name), cin: '', tel: '', email: '', ninea: '', numero: '',
-    intitule: '', client: '', contratPrincipal: '', taches: [], supervision: '', risques: false,
+    intitule: '', client: '', contratPrincipal: '', taches: [], supervision: '', risques: false, projet: '', projetId: '',
     remunMode: 'global', montant: 0, nature: 'brut', perdiem: 0, jalons: [], delaiPaiement: 30, apresClient: false,
     moyens: { virement: true, cheque: true, mobile: false }, penaliteTaux: 0, penalitePlafond: 10, preavis: 15, litige: 'tribunal',
     clauses: Object.assign({}, SERVICE_CLAUSES)
@@ -127,7 +127,7 @@
       worker: { civilite: 'Monsieur', nom: '', prenoms: '', sexe: 'M', naissance: '', lieuNaissance: '', pays: 'Sénégal', nationalite: 'Sénégalaise', pere: '', mere: '', domicile: '', famille: 'celibataire', enfants: 0, conjointRevenus: false, epouses: 0, nomsEpouses: '', nomsEnfants: '' },
       job: { projetNom: '', projetObjet: '', fonctionDetail: '', copieInspection: false, emploi: '', classification: '', convention: 'Convention collective nationale du commerce du 16 novembre 1956', dateEngagement: '', type: 'CDI', dateFin: '', essaiMois: 3, essaiRenouvelable: true, horaire: 40, lieu: str(p.siege), lieuSignature: str(p.ville) || 'Dakar', dateContrat: '', exemplaires: 4, ncActif: false, ncMois: 6, ncKm: 30, ncMontant: 0 },
       salary: { base: 0, sursalaire: 0, logement: 0, anciennetePct: 0, transport: 0 },
-      service: serviceDefaults(p, company && (company.employer || company.name)),
+      service: serviceDefaults(p, company && (company.employer || company.name)), paiements: [],
       clauses: { references: CLAUSES.references.slice(), conges: CLAUSES.conges, prevoyance: CLAUSES.prevoyance, discipline: CLAUSES.discipline, mobilite: CLAUSES.mobilite, duree: '' },
       dmt: null
     };
@@ -155,6 +155,7 @@
     if (LEGACY.conges.includes(out.clauses.conges)) out.clauses.conges = cddClause('conges', out.job.type);
     if (out.clauses.discipline === LEGACY.discipline) out.clauses.discipline = CLAUSES.discipline;
     if (LEGACY.duree.includes(out.clauses.duree)) out.clauses.duree = cddClause('duree', out.job.type);
+    if (!Array.isArray(out.paiements)) out.paiements = [];
     if (!STATUS.includes(out.status)) out.status = 'brouillon';
     if (!TYPE_LABEL[out.job.type]) out.job.type = 'CDI';
     if (isCdd(out.job.type) && !str(out.clauses.duree)) out.clauses.duree = CLAUSES_CDD.duree[out.job.type];
@@ -224,12 +225,64 @@
   const parseJalons = (text) => String(text == null ? '' : text).split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = /^(\d+(?:[.,]\d+)?)\s*(?:%|\|)?\s*[|:–-]?\s*(.*)$/.exec(l); return m ? { pct: num(m[1]), libelle: str(m[2]) } : { pct: 0, libelle: l }; });
   const jalonsText = (arr) => (arr || []).map((x) => num(x.pct) + ' | ' + str(x.libelle)).join('\n');
 
+  /** Projet de l'entreprise portant ce nom (casse ignorée) ; créé s'il n'existe pas. */
+  function ensureProject(projects, name, client) {
+    const n = str(name).replace(/\s+/g, ' '); if (!n) return null;
+    let p = projects.find((x) => str(x.name).toLocaleLowerCase('fr') === n.toLocaleLowerCase('fr'));
+    if (!p) { p = { id: 'pj-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6), name: n, client: str(client), createdAt: new Date().toISOString().slice(0, 10) }; projects.push(p); }
+    return p;
+  }
+  /** Valeur d'un contrat de prestation : prix global, ou honoraires mensuels × nombre de mois (au moins un). */
+  function serviceValue(c) {
+    const s = (c && c.service) || {}, t = serviceTotals(c), j = (c && c.job) || {};
+    if (s.remunMode !== 'mensuel') return t.montant;
+    const mois = iso(j.dateEngagement) && iso(j.dateFin) ? Math.max(1, Math.round((dayDiff(j.dateEngagement, j.dateFin) + 1) / 30.44)) : 1;
+    return t.montant * mois;
+  }
+  /** Bulletin de paiement d'honoraires d'un prestataire INDÉPENDANT (ce n'est pas un bulletin de salaire : ni IPRES, ni CSS salariale, ni IR/TRIMF).
+      Les montants découlent du contrat : honoraires mensuels (prorata sur 30 jours), échéance d'un prix global, per diem, pénalités de retard (plafonnées), retenue à la source, TVA. */
+  function computeHonoraires(c, rec) {
+    const s = (c && c.service) || {}, t = serviceTotals(c), r = rec || {}, lines = [], JM = 30;
+    let base = 0, label = 'Honoraires', detail = '';
+    if (s.remunMode === 'mensuel') {
+      const jours = num(r.jours) > 0 ? Math.min(num(r.jours), JM) : JM;
+      base = Math.round(t.montant * jours / JM); label = 'Honoraires' + (str(r.periode) ? ' — ' + str(r.periode) : ''); detail = jours >= JM ? 'Mois complet' : jours + ' jours sur ' + JM + ' (prorata)';
+    } else if (t.jalons.length && r.jalon !== '' && r.jalon != null && t.jalons[num(r.jalon)]) {
+      const j = t.jalons[num(r.jalon)]; base = j.montant; label = 'Échéance ' + (num(r.jalon) + 1) + ' — ' + (j.libelle || 'livrable'); detail = j.pct + ' % des honoraires';
+    } else if (num(r.montantSaisi) > 0) { base = Math.min(Math.round(num(r.montantSaisi)), t.montant); label = 'Règlement partiel des honoraires'; detail = 'Sur ' + t.montant + ' FCFA'; }
+    else { base = t.montant; label = 'Honoraires de la mission'; detail = 'Solde'; }
+    lines.push({ label, detail, amount: base });
+    const nuitees = Math.max(0, Math.round(num(r.nuitees))), perdiem = nuitees * t.perdiem;
+    if (perdiem > 0) lines.push({ label: 'Per diem', detail: nuitees + ' nuitée(s) × ' + t.perdiem, amount: perdiem });
+    let pen = 0; const jr = Math.max(0, Math.round(num(r.penaliteJours)));
+    if (num(s.penaliteTaux) > 0 && jr > 0) { pen = Math.min(Math.round(base * num(s.penaliteTaux) / 1000 * jr), Math.round(t.montant * num(s.penalitePlafond) / 100)); lines.push({ label: 'Pénalités de retard', detail: jr + ' jour(s) × ' + num(s.penaliteTaux) + ' ‰ (plafond ' + num(s.penalitePlafond) + ' %)', amount: -pen }); }
+    const imposable = base - pen, rate = Math.max(0, num(r.retenuePct)), retenue = Math.round(imposable * rate / 100), net_ = s.nature === 'net';
+    let retDed = 0;
+    if (rate > 0) { if (net_) lines.push({ label: 'Retenue à la source (' + rate + ' %)', detail: 'à la charge de l’entreprise', amount: 0, info: retenue }); else { retDed = retenue; lines.push({ label: 'Retenue à la source (' + rate + ' %)', detail: 'sur ' + imposable, amount: -retenue }); } }
+    const tvaRate = s.nature === 'ht' ? Math.max(0, num(r.tvaPct)) : 0, tva = Math.round(imposable * tvaRate / 100);
+    if (tva > 0) lines.push({ label: 'TVA (' + tvaRate + ' %)', detail: 'sur ' + imposable, amount: tva });
+    const net = base + perdiem - pen - retDed + tva;
+    return { lines, base, perdiem, penalites: pen, retenue, retenueSupportee: net_ ? retenue : 0, tva, net, netEnLettres: amountWords(net) };
+  }
+  function validatePaiement(c, rec) {
+    const s = (c && c.service) || {}, t = serviceTotals(c), r = rec || {}, errors = [], warnings = [];
+    if (!str(r.periode)) errors.push('Indiquez la période ou l’objet du paiement (ex. Décembre 2026, Livrable 1).');
+    if (s.remunMode === 'mensuel' && r.jours !== '' && r.jours != null && (num(r.jours) < 1 || num(r.jours) > 30)) errors.push('Les jours de prestation effective doivent être compris entre 1 et 30.');
+    if (s.remunMode !== 'mensuel' && t.jalons.length && (r.jalon === '' || r.jalon == null) && !(num(r.montantSaisi) > 0)) errors.push('Choisissez l’échéance payée (ou saisissez un montant partiel).');
+    if (num(r.nuitees) < 0) errors.push('Le nombre de nuitées ne peut pas être négatif.');
+    if (num(r.retenuePct) < 0 || num(r.retenuePct) > 100) errors.push('Le taux de retenue à la source doit être compris entre 0 et 100 %.');
+    if (num(r.penaliteJours) > 0 && !(num(s.penaliteTaux) > 0)) warnings.push('Aucune pénalité de retard n’est prévue au contrat : le calcul n’en tient pas compte.');
+    if (!(num(r.retenuePct) > 0) && s.nature !== 'net') warnings.push('Aucune retenue à la source appliquée : renseignez le taux prévu par la législation fiscale en vigueur (à confirmer auprès de la DGID).');
+    return { errors, warnings, valid: errors.length === 0 };
+  }
+
   function validateService(c) {
     const errors = [], warnings = [], w = c.worker || {}, j = c.job || {}, s = c.service || {}, e = c.employer || {}, t = serviceTotals(c);
     const label = j.type === 'LDC' ? 'la lettre de commande' : 'le contrat';
     if (!str(w.nom)) errors.push('Le nom du prestataire est obligatoire.');
     if (!str(w.prenoms)) errors.push('Les prénoms du prestataire sont obligatoires.');
     if (!str(s.intitule)) errors.push('L’intitulé de la mission (titre de l’activité) est obligatoire.');
+    if (!str(s.projet)) errors.push('Rattachez ce document à un projet : saisissez le nom du projet (créé automatiquement s’il n’existe pas).');
     if (!iso(j.dateEngagement)) errors.push('La date de début d’exécution est obligatoire.');
     if (iso(j.dateFin) && iso(j.dateEngagement) && j.dateFin <= j.dateEngagement) errors.push('La date de fin doit être postérieure à la date de début.');
     if (!(t.montant > 0)) errors.push('Le montant des honoraires doit être supérieur à 0.');
@@ -352,6 +405,6 @@
     return out;
   }
 
-  const api = { isForeign, LEGACY, TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
+  const api = { ensureProject, serviceValue, computeHonoraires, validatePaiement, isForeign, LEGACY, TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContracts = api;
 })(typeof window !== 'undefined' ? window : globalThis);

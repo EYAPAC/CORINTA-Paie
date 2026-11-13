@@ -28,12 +28,12 @@
   const inWords = (n) => { n = Math.round(Number(n) || 0); return (WORDS[n] || String(n)) + ' (' + String(n).padStart(2, '0') + ')'; };
 
   /* ───────── État de l'écran (par entreprise) ───────── */
-  const view = { imp: null, imported: new Set(), afterImport: false, companyId: '', draft: null, tab: 'contract', q: '', fStatus: '', fType: '', msg: '', timer: 0, derivedTimer: 0, dirty: false };
+  const view = { imp: null, imported: new Set(), afterImport: false, companyId: '', draft: null, tab: 'contract', q: '', fStatus: '', fType: '', fProjet: '', pay: null, msg: '', timer: 0, derivedTimer: 0, dirty: false };
   const company = () => ORG.items.find((c) => c.id === WS.state.companyId);
   const contractsOf = (c) => (Array.isArray(c.contracts) ? c.contracts : (c.contracts = []));
   function ensureView() {
     const c = company();
-    if (view.companyId !== (c && c.id)) { Object.assign(view, { imp: null, imported: new Set(), afterImport: false, companyId: c && c.id, draft: null, tab: 'contract', q: '', fStatus: '', fType: '', msg: '', dirty: false }); }
+    if (view.companyId !== (c && c.id)) { Object.assign(view, { imp: null, imported: new Set(), afterImport: false, companyId: c && c.id, draft: null, tab: 'contract', q: '', fStatus: '', fType: '', fProjet: '', pay: null, msg: '', dirty: false }); }
     if (!view.draft && c) view.draft = K.blankContract(c, todayISO());
     return c;
   }
@@ -126,6 +126,7 @@
     const list = contractsOf(c);
     d.updatedAt = todayISO(); if (!d.createdAt) d.createdAt = d.updatedAt;
     if (!d.number) d.number = K.nextNumber(list, d.updatedAt, d.job.type);
+    if (K.isService(d.job.type) && str(d.service.projet)) { const pj = K.ensureProject(c.projects = Array.isArray(c.projects) ? c.projects : [], d.service.projet, d.service.client); if (pj) { d.service.projetId = pj.id; d.service.projet = pj.name; if (!pj.client && str(d.service.client)) pj.client = str(d.service.client); } }
     const i = list.findIndex((x) => x.id === d.id); if (i >= 0) list[i] = clone(d); else list.unshift(clone(d));
     c.profile = Object.assign({}, c.profile, { siege: d.employer.siege, representant: d.employer.representant, qualite: d.employer.qualite, activite: d.employer.activite, signataire: d.employer.signataire, ville: d.job.lieuSignature, alias: d.service && d.service.alias });
     persistOrg(); view.dirty = false;
@@ -174,7 +175,7 @@
     m.addEventListener('click', (e) => {
       if (e.target === m || e.target.closest('[data-ctp=close]')) m.classList.add('hidden');
       if (e.target.closest('[data-ctp=print]')) printHtml($('ctPreviewBody').innerHTML, $('ctPreviewTitle').textContent);
-      if (e.target.closest('[data-ctp=dl]') && view.previewCtx) downloadDoc(view.previewCtx.kind, view.previewCtx.d);
+      if (e.target.closest('[data-ctp=dl]') && view.previewCtx) downloadDoc(view.previewCtx.kind, view.previewCtx.d, view.previewCtx.rec);
     });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') m.classList.add('hidden'); });
   }
@@ -190,6 +191,11 @@
     document.body.classList.add('printing-doc'); setTimeout(() => window.print(), 50);
   }
   const netOf = (d) => (estimateNet(d) || {}).net || 0;
+  const slug = (s) => String(s || '').replace(/[^\p{L}\p{N}]+/gu, '-');
+  function openPay(id, print) {
+    const d = view.draft, rec = (d.paiements || []).find((r) => r.id === id); if (!rec || !checked(d)) return;
+    const html = X().modelHtml(X().honorairesModel(d, rec)); if (print) printHtml(html, 'BulletinHonoraires-' + slug(rec.numero)); else showDoc(html, 'Bulletin d’honoraires · ' + K.fullName(d.worker) + ' · ' + rec.periode, { kind: 'paiement', d, rec });
+  }
   function docFor(kind, d) {
     const co = company(), name = (K.fullName(d.worker) || 'travailleur').replace(/[^\p{L}\p{N}]+/gu, '-'), x = X();
     if (kind === 'dmt') return { html: x.dmtHtml(x.dmtData(K.dmtView(d, co), netOf(d))), title: 'DMT-' + name };
@@ -208,11 +214,11 @@
     const a = document.createElement('a'), url = URL.createObjectURL(blob); a.href = url; a.download = name; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
   /** Contrat → .docx (Word) ; DMT → .xlsx (Excel). Même modèle de données que l'aperçu. */
-  function downloadDoc(kind, d) {
+  function downloadDoc(kind, d, rec) {
     if (!checked(d)) return;
     try {
-      const x = X(), name = x.fileName(kind, d);
-      const bytes = kind === 'dmt' ? x.dmtXlsx(x.dmtData(K.dmtView(d, company()), netOf(d))) : x.modelDocx(x.contractModel(d), { title: 'Contrat de travail ' + K.fullName(d.worker) });
+      const x = X(), name = kind === 'paiement' ? x.fileNamePaiement(d, rec) : x.fileName(kind, d);
+      const bytes = kind === 'dmt' ? x.dmtXlsx(x.dmtData(K.dmtView(d, company()), netOf(d))) : kind === 'paiement' ? x.modelDocx(x.honorairesModel(d, rec), { title: 'Bulletin d’honoraires ' + K.fullName(d.worker) }) : x.modelDocx(x.contractModel(d), { title: 'Contrat de travail ' + K.fullName(d.worker) });
       saveBlob(new Blob([bytes], { type: x.MIME[kind === 'dmt' ? 'xlsx' : 'docx'] }), name); toast(name + ' téléchargé');
     } catch (err) { console.error('Export du document', err); toast('Export impossible : ' + (err && err.message ? err.message : err)); }
   }
@@ -225,7 +231,7 @@
     if (type === 'select') return '<div class="' + cls + '"><label for="' + id + '">' + esc(label) + '</label><select id="' + id + '"' + attrs + '>' + o.options.map(([k, l]) => '<option value="' + esc(k) + '"' + (String(v) === String(k) ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div>';
     if (type === 'textarea') return '<div class="' + cls + ' wide"><label for="' + id + '">' + esc(label) + '</label><textarea id="' + id + '" rows="' + (o.rows || 3) + '"' + attrs + '>' + esc(Array.isArray(v) ? v.join('\n') : v) + '</textarea></div>';
     if (type === 'checkbox') return '<label class="ws-check"><input type="checkbox" id="' + id + '"' + attrs + (v ? ' checked' : '') + '> ' + esc(label) + '</label>';
-    return '<div class="' + cls + '"><label for="' + id + '">' + esc(label) + '</label><input id="' + id + '" type="' + type + '"' + (type === 'number' ? ' min="0" step="any"' : '') + attrs + ' value="' + esc(v == null ? '' : v) + '"' + (o.placeholder ? ' placeholder="' + esc(o.placeholder) + '"' : '') + ro + '></div>';
+    return '<div class="' + cls + '"><label for="' + id + '">' + esc(label) + '</label><input id="' + id + '" type="' + type + '"' + (type === 'number' ? ' min="0" step="any"' : '') + attrs + ' value="' + esc(v == null ? '' : v) + '"' + (o.placeholder ? ' placeholder="' + esc(o.placeholder) + '"' : '') + (o.list ? ' list="' + o.list + '"' : '') + ro + '></div>';
   };
   const card = (title, sub, body) => '<article class="cp-card ws-form"><h2>' + esc(title) + '</h2>' + (sub ? '<p class="cp-sub">' + sub + '</p>' : '') + '<div class="ws-grid-fields">' + body + '</div></article>';
 
@@ -270,10 +276,49 @@
     const t = K.serviceTotals(d), s = d.service, j = d.job, dur = K.durationWords(j.dateEngagement, j.dateFin);
     return '<div class="ct-derived"><div><span>Honoraires en toutes lettres</span><b>' + (t.montant ? esc(t.enLettres) + ' FCFA' : '—') + '</b></div><div><span>Mode de rémunération</span><b>' + (s.remunMode === 'mensuel' ? 'Mensuel : ' + money(t.montant) + ' FCFA / mois' : 'Prix global : ' + money(t.montant) + ' FCFA') + '</b></div>' + (t.jalons.length ? '<div><span>Échéances (total)</span><b>' + t.pctTotal + ' %</b></div>' : '') + (t.perdiem ? '<div><span>Per diem par nuitée</span><b>' + money(t.perdiem) + ' FCFA</b></div>' : '') + (dur ? '<div><span>Durée de la mission</span><b>' + esc(dur) + '</b></div>' : '') + '</div>';
   }
+  /* ───────── Bulletins de paiement d'honoraires (prestataire indépendant) ───────── */
+  const payDefaults = () => ({ periode: '', jours: '', nuitees: 0, jalon: '', montantSaisi: '', retenuePct: 0, tvaPct: 18, penaliteJours: 0 });
+  const amt = (l) => (l.amount === 0 && l.info != null ? '(' + money(l.info) + ')' : (l.amount < 0 ? '− ' : '') + money(Math.abs(l.amount)));
+  function payCalcHTML(d) {
+    const rec = Object.assign({}, view.pay), v = K.validatePaiement(d, rec), h = K.computeHonoraires(d, rec);
+    return '<div class="ct-derived">' + h.lines.map((l) => '<div><span>' + esc(l.label) + (l.detail ? ' · ' + esc(l.detail) : '') + '</span><b>' + amt(l) + '</b></div>').join('') + '<div><span><b>Net à payer</b> · ' + esc(h.netEnLettres) + ' FCFA</span><b>' + money(h.net) + ' FCFA</b></div></div>' +
+      (v.errors.length ? '<ul class="ct-issues err">' + v.errors.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul>' : '') + (v.warnings.length ? '<ul class="ct-issues">' + v.warnings.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul>' : '');
+  }
+  /* signature des réglages du contrat qui décident des champs du bulletin (mensuel / échéances / per diem / pénalités / nature) */
+  const paySig = (d) => JSON.stringify([d.service.remunMode, K.serviceTotals(d).perdiem > 0, K.num(d.service.penaliteTaux) > 0, d.service.nature, K.serviceTotals(d).jalons.map((j) => j.pct + j.libelle)]);
+  function paymentsHTML(d) {
+    const c = company(), saved = contractsOf(c).some((x) => x.id === d.id), s = d.service, t = K.serviceTotals(d); view.pay = view.pay || payDefaults();
+    const head = '<article class="cp-card ws-form" id="ctPayCard" data-saved="' + (saved ? '1' : '0') + '" data-sig="' + esc(paySig(d)) + '"><h2>Bulletins d’honoraires du prestataire</h2>';
+    if (!saved) return head + '<p class="cp-sub">Enregistrez d’abord le document (nom, prénoms et projet saisis) pour établir des bulletins de paiement.</p></article>';
+    const p = view.pay, inp = (key, label, type, o) => '<div class="ws-field"><label for="ctPay_' + key + '">' + esc(label) + '</label><input id="ctPay_' + key + '" type="' + type + '" data-ct-pay="' + key + '"' + (type === 'number' ? ' min="0" step="any"' : '') + ' value="' + esc(p[key] == null ? '' : p[key]) + '"' + (o && o.placeholder ? ' placeholder="' + esc(o.placeholder) + '"' : '') + '></div>';
+    const act = (a, ic, label, id) => '<button type="button" class="cp-act' + (a === 'pay-del' ? ' danger' : '') + '" title="' + esc(label) + '" aria-label="' + esc(label) + '" data-ct="' + a + ':' + esc(id) + '">' + icon(ic) + '</button>';
+    const rows = (d.paiements || []).map((r) => '<tr><td class="nw">' + esc(r.numero) + '</td><td>' + esc(r.periode) + '</td><td class="nw">' + esc(frDate(r.date)) + '</td><td class="nw"><b>' + money(K.computeHonoraires(d, r).net) + ' FCFA</b></td><td><div class="cp-actions">' + act('pay-view', 'eye', 'Aperçu du bulletin', r.id) + act('pay-dl', 'download', 'Télécharger (Word)', r.id) + act('pay-print', 'printer', 'Imprimer (PDF)', r.id) + act('pay-del', 'trash', 'Supprimer le bulletin', r.id) + '</div></td></tr>').join('');
+    return head + '<p class="cp-sub">Pour un prestataire indépendant, le bulletin est un <b>décompte d’honoraires</b> calculé d’après le contrat (mensuel, échéances, per diem, pénalités, retenue à la source) : ce n’est pas un bulletin de salaire, ni d’IPRES, de CSS ou d’IR (cela contredirait son statut d’indépendant).</p>' +
+      (rows ? '<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>N°</th><th>Période / objet</th><th>Date</th><th>Net à payer</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="cp-sub">Aucun bulletin établi pour ce contrat.</p>') +
+      '<div class="ws-grid-fields">' + inp('periode', 'Période ou objet du paiement', 'text', { placeholder: 'Décembre 2026, Livrable 1…' }) +
+      (s.remunMode === 'mensuel' ? inp('jours', 'Jours de prestation effective (vide = mois complet)', 'number') : (t.jalons.length ? '<div class="ws-field"><label for="ctPay_jalon">Échéance payée</label><select id="ctPay_jalon" data-ct-pay="jalon"><option value="">— choisir —</option>' + t.jalons.map((j, i) => '<option value="' + i + '"' + (String(p.jalon) === String(i) ? ' selected' : '') + '>' + esc((i + 1) + '. ' + j.pct + ' % · ' + (j.libelle || 'livrable') + ' · ' + money(j.montant)) + '</option>').join('') + '</select></div>' : inp('montantSaisi', 'Montant partiel (vide = solde des honoraires)', 'number'))) +
+      (t.perdiem > 0 ? inp('nuitees', 'Nuitées sur le terrain (per diem ' + money(t.perdiem) + ')', 'number') : '') + (K.num(s.penaliteTaux) > 0 ? inp('penaliteJours', 'Jours de retard imputables au prestataire', 'number') : '') +
+      inp('retenuePct', 'Retenue à la source (%) — taux légal à confirmer (DGID)', 'number') + (s.nature === 'ht' ? inp('tvaPct', 'TVA (%)', 'number') : '') + '</div>' +
+      '<div id="ctPayCalc">' + payCalcHTML(d) + '</div><div class="ct-bar"><button type="button" class="cp-btn primary" data-ct="pay-add">' + icon('check') + 'Établir le bulletin d’honoraires</button></div></article>';
+  }
+  function payField(t) {
+    const k = t.dataset.ctPay; view.pay = view.pay || payDefaults(); view.pay[k] = t.type === 'number' ? (t.value === '' ? '' : Number(t.value)) : t.value;
+    const el = $('ctPayCalc'); if (el && view.draft) el.innerHTML = payCalcHTML(view.draft);
+  }
+  function addPayment() {
+    const d = view.draft; if (!commit()) { toast(view.msg); return; }
+    const v = K.validatePaiement(d, view.pay); if (v.errors.length) { toast(v.errors[0]); return; }
+    const n = (d.paiements || []).length + 1, rec = Object.assign({}, view.pay, { id: 'pay-' + Date.now().toString(36), numero: (d.number || 'CT') + '/' + String(n).padStart(2, '0'), date: todayISO() });
+    d.paiements = (d.paiements || []).concat([rec]); commit(); view.pay = payDefaults(); render(); toast('Bulletin d’honoraires ' + rec.numero + ' établi');
+  }
+
   function serviceTab(d) {
     const W = (p, l, o) => fld('worker.' + p, l, o), J = (p, l, o) => fld('job.' + p, l, o), E = (p, l, o) => fld('employer.' + p, l, o), S = (p, l, o) => fld('service.' + p, l, o);
     const ldc = d.job.type === 'LDC', clauseLabels = [['nature', 'Nature du contrat (prestation indépendante)'], ['independance', 'Indépendance et statut du prestataire'], ['regularite', 'Régularité de l’activité (travail dissimulé, art. 284-285)'], ['personnel', 'Personnel et sous-traitance (art. 287-291)'], ['securite', 'Sécurité et santé sur site (art. 313-316)'], ['fiscal', 'Fiscalité et obligations sociales'], ['normes', 'Normes d’exécution (une ligne par engagement)'], ['qualite', 'Obligation de qualité (lettre de commande)'], ['conflit', 'Conflit d’intérêts'], ['confidentialite', 'Confidentialité'], ['donnees', 'Protection des données personnelles'], ['propriete', 'Propriété intellectuelle'], ['penalites', 'Pénalités de retard'], ['forceMajeure', 'Force majeure'], ['resiliation', 'Résiliation'], ['finales', 'Dispositions finales']];
-    return card('Entreprise (commanditaire)', 'Repris du profil de l’entreprise ; enregistré pour les prochains documents.',
+    const projects = (company().projects || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'fr'));
+    return card('Projet', 'Tout contrat de prestation ou lettre de commande est enregistré sous un projet (créé automatiquement s’il n’existe pas). Pas de DMT pour ces documents : le prestataire est payé sur bulletin d’honoraires, une fois le contrat enregistré.',
+      S('projet', 'Nom du projet', { wide: true, list: 'ctProjets', placeholder: projects.length ? 'Choisissez un projet existant ou saisissez-en un nouveau' : 'Ex. Étude de faisabilité de la zone industrielle de Bambilor' }) + '<datalist id="ctProjets">' + projects.map((p) => '<option value="' + esc(p.name) + '"></option>').join('') + '</datalist>') +
+      card('Entreprise (commanditaire)', 'Repris du profil de l’entreprise ; enregistré pour les prochains documents.',
       E('prefixe', 'Présentation (ex. Le Cabinet, La société)', { placeholder: 'Le Cabinet' }) + E('name', 'Raison sociale') + S('alias', 'Désignation courte dans le document', { placeholder: 'MSA', title: 'Ex. MSA : « ci-après MSA ». Mettez un nom sans article.' }) + E('siege', 'Siège social') + E('representant', 'Représenté par', { placeholder: 'Monsieur … / Madame …' }) + E('qualite', 'En sa qualité de') + E('signataire', 'Signataire (texte au-dessus de la signature)')) +
       card('Prestataire', 'La personne qui réalise la mission : travailleur indépendant, hors Code du travail.',
         W('civilite', 'Civilité', { type: 'select', options: [['Monsieur', 'Monsieur'], ['Madame', 'Madame'], ['Mademoiselle', 'Mademoiselle']] }) + W('sexe', 'Sexe', { type: 'select', options: [['M', 'Masculin'], ['F', 'Féminin']] }) + W('nom', 'Nom') + W('prenoms', 'Prénoms') +
@@ -292,6 +337,7 @@
         '<div class="wide"><b>Moyens de paiement acceptés</b></div>' + fld('service.moyens.virement', 'Virement bancaire', { type: 'checkbox' }) + fld('service.moyens.cheque', 'Chèque', { type: 'checkbox' }) + fld('service.moyens.mobile', 'Paiement mobile', { type: 'checkbox' }) + '<div class="wide" id="ctDerived">' + serviceDerivedHTML(d) + '</div>') +
       card('Retards, résiliation et litiges', 'Les pénalités ne s’appliquent que si le taux est supérieur à 0.',
         S('penaliteTaux', 'Pénalité de retard (‰ par jour, 0 = aucune)', { type: 'number' }) + S('penalitePlafond', 'Plafond des pénalités (% des honoraires)', { type: 'number' }) + S('preavis', 'Préavis de résiliation (jours)', { type: 'number' }) + S('litige', 'Règlement des litiges', { type: 'select', options: [['tribunal', 'Amiable puis juridictions de Dakar'], ['arbitrage', 'Amiable puis arbitrage (Acte uniforme OHADA)']] })) +
+      paymentsHTML(d) +
       '<details class="cp-card ws-form"><summary><b>Clauses du document</b> (modèle amélioré, modifiables : une ligne = un paragraphe)</summary><div class="ws-grid-fields">' + clauseLabels.map(([k, l]) => fld('service.clauses.' + k, l, { type: 'textarea', rows: 4 })).join('') +
       '</div><p class="cp-sub">Variables : {alias} {de} {preavis} {taux} {plafond}. Ces clauses s’appuient sur le droit sénégalais (Code des obligations civiles et commerciales, loi n° 2008-09 sur le droit d’auteur, loi n° 2008-12 sur les données personnelles) ; faites-les valider par un conseil juridique avant usage, en particulier au regard du nouveau Code du travail (septembre 2026) pour écarter tout risque de requalification.</p></details>';
   }
@@ -310,8 +356,8 @@
       X('objet', 'Objet de la déclaration', { type: 'select', options: K.OBJETS.map((o) => [o, o]) }) + X('ethnie', 'Groupe ethnique') + X('cni', 'Carte d’identité n°') + X('cniLieu', 'Délivrée à') + X('cniDate', 'Délivrée le', { type: 'date' }) + X('cniPar', 'Par') +
       X('ccpf', 'N° d’immatriculation à la C.C.P.F. – A.T. (CSS)') + X('agrom', 'N° d’immatriculation à l’A.G.R.O.M. (IPRES)') + fld('worker.nomsEpouses', 'Nom des épouses', {}) + fld('worker.nomsEnfants', 'Noms des enfants à charge', {}) +
       X('declEmbauche', 'N° et date de la déclaration d’embauche') + X('profession', 'Profession (par défaut : emploi)', { placeholder: str(d.job.emploi) }) + X('activite', 'Activité de l’établissement', { placeholder: str(d.employer.activite) }) +
-      X('visaApprobation', 'N° et date du visa d’approbation (Inspecteur du Travail)') + X('visaEnregistrement', 'N° et date du visa d’enregistrement (main-d’œuvre)') + X('precedentEmployeur', 'Nom et adresse du précédent employeur') +
-      X('art107Lieu', 'Art. 107 : lieu de résidence habituelle') + X('art107Date', 'Art. 107 : date d’entrée au Sénégal', { type: 'date' }) +
+      X('visaApprobation', 'N° et date du visa du contrat (travailleur étranger, art. 105 ; jeune travailleur, art. 106)') + X('visaEnregistrement', 'N° et date du dépôt du contrat à l’inspection du travail (art. 93 et 99)') + X('precedentEmployeur', 'Nom et adresse du précédent employeur') +
+      X('art107Lieu', 'Travailleur étranger (art. 105) : lieu de résidence habituelle') + X('art107Date', 'Travailleur étranger (art. 105) : date d’entrée au Sénégal', { type: 'date' }) +
       X('militaireClasse', 'Situation militaire : classe de recrutement') + X('militaireService', 'Service militaire effectué ?') + X('militaireArmee', 'Armée d’appartenance') + X('militaireGrade', 'Grade dans la réserve'));
     return '<div class="ct-missing" id="ctMissing">' + (miss.length ? '<b>Informations encore à compléter (recommandé) :</b> ' + miss.map(esc).join(' · ') : '✔ Les informations usuelles de la DMT sont renseignées.') + '</div>' + synced + extras;
   }
@@ -322,6 +368,7 @@
     const c = company(), d = view.draft; if (!c || !d || WS.state.module !== 'contract-new') return;
     const s = $('ctSub'); if (s) s.innerHTML = subText(c, d);
     const p = $('ctPick'); if (p) p.innerHTML = pickOptions(c, d);
+    const pc = $('ctPayCard'); if (pc && K.isService(d.job.type) && ((pc.dataset.saved === '1') !== contractsOf(c).some((x) => x.id === d.id) || pc.dataset.sig !== paySig(d))) pc.outerHTML = paymentsHTML(d);
     const m = !K.isService(d.job.type) && $('ctMissing'); if (m) { const miss = K.dmtMissing(d, c); m.innerHTML = miss.length ? '<b>Informations encore à compléter (recommandé) :</b> ' + miss.map(esc).join(' · ') : '✔ Les informations usuelles de la DMT sont renseignées.'; }
   }
   function elaborationHTML(c) {
@@ -343,22 +390,24 @@
   const STATUS_TONE = { 'brouillon': 'neutral', 'signé': 'info', 'en cours': 'success', 'terminé': 'neutral' };
   function listHTML(c) {
     const all = contractsOf(c).map((x) => K.normalize(x, c)), q = view.q.trim().toLocaleLowerCase('fr');
-    const rows = all.filter((x) => (!view.fStatus || x.status === view.fStatus) && (!view.fType || x.job.type === view.fType) && (!q || (K.fullName(x.worker) + ' ' + x.job.emploi + ' ' + x.number).toLocaleLowerCase('fr').includes(q)))
+    const rows = all.filter((x) => (!view.fStatus || x.status === view.fStatus) && (!view.fType || x.job.type === view.fType) && (!view.fProjet || str(x.service && x.service.projet) === view.fProjet) && (!q || (K.fullName(x.worker) + ' ' + x.job.emploi + ' ' + x.number).toLocaleLowerCase('fr').includes(q)))
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     const alerts = K.alertsOf(all, todayISO()).filter((a) => a.level !== 'info' || all.length <= 12);
+    const projNames = [...new Set(all.filter((x) => K.isService(x.job.type)).map((x) => str(x.service.projet)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+    const projectsCard = projNames.length ? '<article class="cp-card"><div class="cp-card-head"><h2>Projets</h2><p class="cp-sub">Prestations de services et lettres de commande par projet (cliquez sur un projet pour filtrer la liste).</p></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Projet</th><th>Client</th><th>Documents</th><th>Valeur des contrats</th></tr></thead><tbody>' + projNames.map((n) => { const xs = all.filter((x) => K.isService(x.job.type) && str(x.service.projet) === n), pj = (c.projects || []).find((p) => p.name === n) || {}; return '<tr><td><button type="button" class="cp-person cp-person-btn" data-ct="proj:' + esc(n) + '"><b>' + esc(n) + '</b>' + (view.fProjet === n ? ' ✔' : '') + '</button></td><td>' + esc(str(pj.client) || str(xs[0].service.client) || '—') + '</td><td>' + xs.length + '</td><td class="nw"><b>' + money(xs.reduce((a, x) => a + K.serviceValue(x), 0)) + ' FCFA</b></td></tr>'; }).join('') + '</tbody></table></div></article>' : '';
     const kpi = (l, v) => '<div class="ws-sum"><span>' + esc(l) + '</span><b>' + esc(v) + '</b></div>';
     const act = (a, ic, label, id) => '<button type="button" class="cp-act' + (a === 'del' ? ' danger' : '') + '" title="' + esc(label) + '" aria-label="' + esc(label) + '" data-ct="' + a + ':' + esc(id) + '">' + icon(ic) + '</button>';
     const body = rows.map((x) => {
       const dm = K.isService(x.job.type) ? ['—', 'neutral'] : DMT_LABEL(x), te = K.trialEnd(x), end = K.isService(x.job.type) ? (x.job.dateFin ? 'Fin : ' + frDate(x.job.dateFin) : '—') : K.isCdd(x.job.type) ? (x.job.type === 'CDD_PROJET' ? 'Fin du projet' + (x.job.projetNom ? ' « ' + x.job.projetNom + ' »' : '') + (x.job.dateFin ? ' : ' + frDate(x.job.dateFin) : '') : frDate(x.job.dateFin)) : (te ? 'Essai jusqu’au ' + frDate(te) : '—');
-      return '<tr><td class="nw">' + esc(x.number || '—') + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(K.TYPE_SHORT[x.job.type] || x.job.type) + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
+      return '<tr><td class="nw">' + esc(x.number || '—') + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(K.TYPE_SHORT[x.job.type] || x.job.type) + '</td><td>' + esc(K.isService(x.job.type) ? str(x.service.projet) || '—' : '—') + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
         '<td><select class="ct-mini" aria-label="Statut du contrat de ' + esc(K.fullName(x.worker)) + '" data-ct-status="' + esc(x.id) + '">' + K.STATUS.map((s) => '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></td><td><span class="cp-badge ' + dm[1] + '">' + dm[0] + '</span></td>' +
-        '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('dl-contract', 'download', 'Télécharger le contrat (Word)', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + (K.isService(x.job.type) ? '' : act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id)) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
+        '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('dl-contract', 'download', 'Télécharger le contrat (Word)', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + (K.isService(x.job.type) ? act('pay-open', 'file2', 'Bulletins d’honoraires du prestataire', x.id) : act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id)) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
     }).join('');
     return '<div class="ws-page-head"><div><h1>Gestion des contrats</h1><p>' + esc(c.name) + ' · ' + all.length + ' contrat' + (all.length > 1 ? 's' : '') + '</p></div><div class="ws-tools"><button type="button" class="cp-btn primary" data-ct="new">' + icon('plus') + 'Nouveau contrat</button></div></div>' +
       '<div class="ws-sums">' + kpi('Contrats', String(all.length)) + kpi('En cours', String(all.filter((x) => x.status === 'en cours').length)) + kpi('Brouillons', String(all.filter((x) => x.status === 'brouillon').length)) + kpi('DMT à établir', String(all.filter((x) => x.status !== 'terminé' && !K.isService(x.job.type) && !(x.dmt && x.dmt.status === 'établie')).length)) + '</div>' +
       (alerts.length ? '<article class="cp-card"><div class="cp-card-head"><h2>Alertes</h2></div><ul class="cp-alerts">' + alerts.map((a) => '<li class="cp-alert ' + (a.level === 'info' ? 'info' : a.level === 'late' ? 'danger' : 'warn') + '"><span class="ico">' + icon(a.level === 'info' ? 'clock' : 'alert') + '</span><button type="button" class="main-act" data-ct="edit:' + esc(a.id) + '">' + esc(a.text) + '</button><span></span></li>').join('') + '</ul></article>' : '') +
-      '<div class="ws-tools ws-filters"><div class="ws-field"><label for="ctQ">Rechercher</label><input id="ctQ" type="search" placeholder="Nom, emploi ou n°" value="' + esc(view.q) + '" autocomplete="off"></div><div class="ws-field"><label for="ctFS">Statut</label><select id="ctFS"><option value="">Tous</option>' + K.STATUS.map((s) => '<option' + (view.fStatus === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div><div class="ws-field"><label for="ctFT">Type</label><select id="ctFT"><option value="">Tous</option>' + Object.entries(K.TYPE_SHORT).map(([k, l]) => '<option value="' + k + '"' + (view.fType === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div></div>' +
-      '<article class="cp-card">' + (rows.length ? '<div class="cp-table-wrap"><table class="cp-table" style="min-width:900px"><thead><tr><th>N°</th><th>Travailleur</th><th>Type</th><th>Engagement</th><th>Échéance</th><th>Statut</th><th>DMT</th><th>Actions</th></tr></thead><tbody>' + body + '</tbody></table></div>'
+      projectsCard + '<div class="ws-tools ws-filters"><div class="ws-field"><label for="ctQ">Rechercher</label><input id="ctQ" type="search" placeholder="Nom, emploi ou n°" value="' + esc(view.q) + '" autocomplete="off"></div><div class="ws-field"><label for="ctFS">Statut</label><select id="ctFS"><option value="">Tous</option>' + K.STATUS.map((s) => '<option' + (view.fStatus === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></div><div class="ws-field"><label for="ctFT">Type</label><select id="ctFT"><option value="">Tous</option>' + Object.entries(K.TYPE_SHORT).map(([k, l]) => '<option value="' + k + '"' + (view.fType === k ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select></div>' + (projNames.length ? '<div class="ws-field"><label for="ctFP">Projet</label><select id="ctFP"><option value="">Tous</option>' + projNames.map((n) => '<option' + (view.fProjet === n ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div>' : '') + '</div>' +
+      '<article class="cp-card">' + (rows.length ? '<div class="cp-table-wrap"><table class="cp-table" style="min-width:900px"><thead><tr><th>N°</th><th>Travailleur</th><th>Type</th><th>Projet</th><th>Engagement</th><th>Échéance</th><th>Statut</th><th>DMT</th><th>Actions</th></tr></thead><tbody>' + body + '</tbody></table></div>'
         : '<div class="cp-empty"><b>' + (all.length ? 'Aucun contrat pour ce filtre' : 'Aucun contrat enregistré') + '</b><span>' + (all.length ? 'Modifiez la recherche ou les filtres.' : 'Utilisez « Nouveau contrat » : la DMT se prépare ensuite automatiquement à partir du contrat.') + '</span></div>') + '</article>';
   }
 
@@ -385,6 +434,12 @@
     else if (a === 'new') newDraft();
     else if (a === 'edit') openDraft(arg, 'contract');
     else if (a === 'dmt') openDraft(arg, 'dmt');
+    else if (a === 'pay-add') addPayment();
+    else if (a === 'pay-view' || a === 'pay-print') openPay(arg, a === 'pay-print');
+    else if (a === 'pay-dl') { const r = (view.draft.paiements || []).find((x) => x.id === arg); if (r) downloadDoc('paiement', view.draft, r); }
+    else if (a === 'pay-del') { const d = view.draft; if (confirm('Supprimer ce bulletin d’honoraires ?')) { d.paiements = (d.paiements || []).filter((x) => x.id !== arg); commit(); render(); toast('Bulletin supprimé'); } }
+    else if (a === 'pay-open') { openDraft(arg, 'contract'); setTimeout(() => { const el = $('ctPayCard'); if (el) el.scrollIntoView({ block: 'start' }); }, 150); }
+    else if (a === 'proj') { view.fProjet = view.fProjet === arg ? '' : arg; render(); }
     else if (a === 'dl-contract') { const x = list.find((k) => k.id === arg); if (x) downloadDoc('contract', K.normalize(clone(x), c)); }
     else if (a === 'print-contract') { const x = list.find((k) => k.id === arg); if (x) openDoc('contract', K.normalize(clone(x), c), true); }
     else if (a === 'dup') { const x = list.find((k) => k.id === arg); if (x) { const n = K.normalize(clone(x), c); Object.assign(n, { id: K.blankContract(c, '').id, number: '', status: 'brouillon', dmt: null, createdAt: todayISO() }); Object.assign(n.worker, { nom: '', prenoms: '', naissance: '', lieuNaissance: '', pere: '', mere: '', domicile: '', nomsEpouses: '', nomsEnfants: '' }); n.job.dateEngagement = ''; n.job.dateContrat = ''; n.job.dateFin = ''; Object.assign(n.service, { cin: '', tel: '', email: '', ninea: '', numero: '' }); view.draft = n; view.tab = 'contract'; view.msg = 'Modèle dupliqué : renseignez le nouveau travailleur.'; WS.go('contract-new'); } }
@@ -396,7 +451,7 @@
     const t = e.target, mod = WS.state.module;
     if (mod === 'contract-list') {
       if (t.dataset.ctStatus) { const c = company(), x = contractsOf(c).find((k) => k.id === t.dataset.ctStatus); if (x && K.STATUS.includes(t.value)) { x.status = t.value; x.updatedAt = todayISO(); persistOrg(); toast('Statut du contrat : ' + t.value); render(); } return true; }
-      if (t.id === 'ctFS') { view.fStatus = t.value; render(); return true; } if (t.id === 'ctFT') { view.fType = t.value; render(); return true; }
+      if (t.id === 'ctFS') { view.fStatus = t.value; render(); return true; } if (t.id === 'ctFT') { view.fType = t.value; render(); return true; } if (t.id === 'ctFP') { view.fProjet = t.value; render(); return true; }
       return false;
     }
     if (mod !== 'contract-new') return false;
@@ -405,6 +460,7 @@
     if (t.dataset.impChk && view.imp) { if (t.checked) view.imp.off.delete(t.dataset.impChk); else view.imp.off.add(t.dataset.impChk); return true; }
     if (t.dataset.impVal && view.imp) { const c = view.imp.candidates[view.imp.pick], it = c.items.find((i) => i.path === t.dataset.impVal); if (it) { it.value = typeof it.value === 'boolean' ? t.checked : typeof it.value === 'number' ? Number(t.value) || 0 : Array.isArray(it.value) ? String(t.value).split(/\n+/).map((s) => s.trim()).filter(Boolean) : t.value; c.fields[it.path] = it.value; } return true; }
     if (t.dataset.ctPick !== undefined) { if (t.value) openDraft(t.value, view.tab); else newDraft(); return true; }
+    if (t.dataset.ctPay) { payField(t); return true; }
     if (t.dataset.ctF) { applyField(t); if (t.dataset.ctR) render(); setTimeout(updateDerived, 30); return true; }
     return false;
   }
@@ -421,6 +477,7 @@
     const t = e.target, mod = WS.state.module;
     if (mod === 'contract-list' && t.id === 'ctQ') { view.q = t.value; render(); const f = $('ctQ'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } return true; }
     if (mod === 'contract-new' && t.dataset.impVal) return true;
+    if (mod === 'contract-new' && t.dataset.ctPay) { payField(t); return true; }
     if (mod === 'contract-new' && t.dataset.ctF && t.tagName !== 'SELECT' && t.type !== 'checkbox') { applyField(t); clearTimeout(view.derivedTimer); view.derivedTimer = setTimeout(updateDerived, 500); return true; }
     return false;
   }

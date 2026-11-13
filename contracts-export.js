@@ -356,8 +356,9 @@
   }
   const PREFIX = { LDC: 'LettreCommande_', PRESTATION: 'ContratPrestation_' };
   const fileName = (kind, d) => (kind === 'dmt' ? 'DMT_' : (PREFIX[(d.job || {}).type] || 'Contrat_')) + baseName(d.worker) + (kind === 'dmt' ? '.xlsx' : '.docx');
+  const fileNamePaiement = (d, rec) => 'BulletinHonoraires_' + baseName(d.worker) + '_' + (String((rec || {}).periode || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '') || 'paiement') + '.docx';
   const MIME = { docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
 
-  const api = { H: { R, B, BU, U, P, sup, toRuns, money, frDate, K, NB }, serviceModels: {}, zip, crc32, contractModel, modelHtml, modelDocx, dmtData, dmtCells, dmtHtml, dmtXlsx, fileName, MIME, CSS, serial };
+  const api = { H: { R, B, BU, U, P, sup, toRuns, money, frDate, K, NB }, serviceModels: {}, zip, crc32, contractModel, modelHtml, modelDocx, dmtData, dmtCells, dmtHtml, dmtXlsx, fileName, fileNamePaiement, MIME, CSS, serial };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContractsExport = api;
 })(typeof window !== 'undefined' ? window : globalThis);
