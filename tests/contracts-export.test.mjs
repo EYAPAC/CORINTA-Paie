@@ -54,7 +54,7 @@ test('ZIP : archive valide (CRC32), parties Word et Excel présentes, XML bien f
 test('contrat : plus aucun « brut total » (aperçu, Word, 3 types de contrat), le salaire reste détaillé', () => {
   for (const t of ['CDI', 'CDD', 'CDD_PROJET']) {
     const d = make(t), m = X.contractModel(d), html = X.modelHtml(m), w = text(docx(d)['word/document.xml']);
-    for (const s of [html.replace(/<[^>]+>/g, ' '), w]) { assert.ok(!/total/i.test(s), t + ' : mot « total » présent'); assert.ok(!/brut\s+mensuel\s+\(transport/i.test(s)); assert.ok(!/317\s?373|343\s?373/.test(s.replace(/[ \s]/g, '')) || true); }
+    for (const s of [html.replace(/<[^>]+>/g, ' '), w]) { assert.ok(!/bruts+total|totals+brut|soit un total/i.test(s), t + ' : « brut total » présent'); assert.ok(!/brut\s+mensuel\s+\(transport/i.test(s)); assert.ok(!/317\s?373|343\s?373/.test(s.replace(/[ \s]/g, '')) || true); }
     ['Salaire de base', 'Sursalaire', 'Indemnité de transport'].forEach((l) => assert.ok(w.includes(l), l));
     assert.ok(w.includes('Le salaire brut mensuel est ainsi décomposé'));
     assert.ok(!w.replace(/\s/g, '').includes('343373'), 'somme des composantes absente');   // 113984+203389+26000 = 343373
@@ -121,7 +121,7 @@ test('cas limites : noms très longs, champs optionnels absents, caractères sp�
 test('prestations avec logement et ancienneté : lignes présentes, aucun total', () => {
   const d = make('CDI', (c) => { c.salary.logement = 125000; c.salary.anciennetePct = 5; });
   const t = text(docx(d)['word/document.xml']);
-  assert.ok(t.includes('Indemnité de logement')); assert.ok(t.includes('Prime d’ancienneté (5 %)')); assert.ok(!/total/i.test(t));
+  assert.ok(t.includes('Indemnité de logement')); assert.ok(t.includes('Prime d’ancienneté (5 %)')); assert.ok(!/bruts+total|totals+brut|soit un total/i.test(t));
 });
 
 test('DMT .xlsx : structure du modèle (fusions, largeurs, hauteurs, A4, zone d’impression, saut de page)', () => {

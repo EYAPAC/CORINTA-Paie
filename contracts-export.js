@@ -74,24 +74,31 @@
     blocks.push(line('Date et Lieu de Naissance : ', (frDate(w.naissance) || '') + (w.lieuNaissance ? ' à ' + w.lieuNaissance : '')), line('Nationalité : ', w.nationalite));
     blocks.push(line('Filiation : ', (cdd ? '' : (fem ? 'Fille de ' : 'Fils de ')) + (str(w.pere) || '…') + ' et ' + (str(w.mere) || '…'), { li: 14 }), line('Situation de Famille : ', fam), line('Domicilié (e) : ', w.domicile));
     blocks.push(P(['Désigné (e) ci-après ', B('« LE TRAVAILLEUR »')], { a: cdd ? 'l' : 'c', sb: 14, sa: 10 }));
-    blocks.push(P(['Il a été conclu le Contrat de Travail aux clauses ci-dessous, conformément aux dispositions ', B('du décret N° 63-00-118 /MFPT/DTSS du 19 Février 1963 fixant les formes et modalités d’établissement du contrat du travail et de l’engagement à l’essai.')], { a: 'j', sa: 16 }));
+    blocks.push(P(['Il a été conclu le Contrat de Travail aux clauses ci-dessous, conformément aux dispositions ', B('du Code du travail (loi n° 2026-18 du 3 septembre 2026) et, tant qu’il demeure en vigueur (article 461), du décret N° 63-00-118 /MFPT/DTSS du 19 Février 1963 fixant les formes et modalités d’établissement du contrat du travail et de l’engagement à l’essai.')], { a: 'j', sa: 16 }));
     blocks.push(item('I.', 'EMPLOI TENU', j.emploi), item('II.', 'CLASSIFICATION PROFESSIONNELLE', j.classification), item('III.', 'DATE DE L’ENGAGEMENT', frDate(j.dateEngagement)));
     blocks.push(item('IV.', 'DUREE DU CONTRAT', projet ? 'Durée déterminée, pour la durée du projet « ' + str(j.projetNom) + ' »' : (cdd ? 'Durée Déterminée' : 'Durée Indéterminée')));
 
     // V. références (la clause d'entrée en vigueur est présentée en citation, comme dans le modèle)
     blocks.push(P([BU('REFERENCES AUX TEXTES REGISSANT LE CONTRAT'), B(' :')], { num: 'V.', li: 40, hang: 40, a: 'l', sa: 8, kn: 1, pb: 1 }));
+    const formal = [], essaiOn = k.num(j.essaiMois) > 0, nat = str(w.nationalite);
+    if (cdd) formal.push('Le présent contrat est constaté par écrit et déposé par l’employeur à l’inspection du travail et de la sécurité sociale du ressort, pour enregistrement, avant tout début d’exécution (article 99 du Code du travail)');
+    else if (essaiOn) formal.push('Le présent contrat comprenant un engagement à l’essai, il est déposé par l’employeur à l’inspection du travail et de la sécurité sociale du ressort, pour enregistrement, avant tout début d’exécution (article 93 du Code du travail)');
+    if (k.isForeign(nat)) formal.push('L’embauche d’un travailleur étranger étant précédée d’un contrat écrit visé par le Directeur général du Travail et de la Sécurité sociale, ce visa est requis avant tout début d’exécution (article 105 du Code du travail)');
+    const ageAt = k.iso(w.naissance) && k.iso(j.dateEngagement) ? (Date.parse(j.dateEngagement) - Date.parse(w.naissance)) / 31557600000 : 99;
+    if (ageAt >= 15 && ageAt < 18) formal.push('Le travailleur étant un jeune travailleur, le présent contrat est signé par son représentant légal et visé par l’inspecteur du travail et de la sécurité sociale du ressort avant tout début d’exécution (article 106 du Code du travail)');
     (d.clauses.references || []).filter((r) => str(r)).forEach((r, i) => {
       const m = str(r).match(/^(.*?)\s+(L’entrée en vigueur.*)$/);
       blocks.push(P(sup(m ? m[1] : str(r)), { num: (i + 1) + '.', numB: 1, li: 62, hang: 22, a: 'j', sa: m ? 6 : 8 }));
       if (m) blocks.push(P(['« ' + m[2].replace(/\.$/, '') + ' » ;'], { li: 62, a: 'j', sa: 8 }));
+      if (i === 0) formal.forEach((x, n) => blocks.push(P(['« ' + x + ' » ;'], { li: 62, a: 'j', sa: n === formal.length - 1 ? 8 : 4 })));
     });
 
     // VI. conditions particulières (rubriques ❶ ❷ … numérotées dans l'ordre)
     blocks.push(P([BU('CONDITIONS PARTICULIERES')], { num: 'VI.', li: 40, hang: 40, a: 'l', sb: 6, sa: 8, kn: 1 }));
     let n = 0; const glyph = () => GLYPH[n++] || String(n);
     const cond = (runs, o) => P(runs, Object.assign({ num: glyph(), li: 30, hang: 30, a: 'j', sa: 8 }, o));
-    const essai = k.num(j.essaiMois) > 0 ? 'Le présent contrat est conclu avec une période d’essai de ' + inWords(j.essaiMois) + ' mois' + (j.essaiRenouvelable ? ', renouvelable tacitement' : '') + ', au cours de laquelle chacune des parties pourra y mettre fin conformément aux dispositions légales et réglementaires en vigueur.' : (cdd ? '' : 'Le présent contrat est conclu sans période d’essai.');
-    const horaire = k.num(j.horaire) > 0 ? [B('L’horaire de travail'), ' est en principe de ' + k.num(j.horaire) + ' heures par semaine' + (k.num(j.horaire) === 40 ? ', soit 173,33 heures le mois' : '') + '.'] : null;
+    const essai = k.num(j.essaiMois) > 0 ? 'Le présent contrat est conclu avec une période d’essai de ' + inWords(j.essaiMois) + ' mois' + (j.essaiRenouvelable ? ', renouvelable une fois par accord écrit des parties, la durée totale de l’essai, renouvellement compris, ne pouvant excéder six (06) mois (article 94 du Code du travail)' : '') + '. Au cours de cette période, chacune des parties peut mettre fin au contrat à tout moment et sans préavis (article 96 du Code du travail).' : (cdd ? '' : 'Le présent contrat est conclu sans période d’essai.');
+    const horaire = k.num(j.horaire) > 0 ? [B('L’horaire de travail'), ' est en principe de ' + k.num(j.horaire) + ' heures par semaine' + (k.num(j.horaire) === 40 ? ', soit 173,33 heures le mois' : '') + ' (durée légale : 40 heures par semaine au maximum, article 241 du Code du travail).'] : null;
     if (essai) { blocks.push(cond(essai)); if (horaire) blocks.push(P(horaire, { li: 30, a: 'j', sa: 8 })); } else if (horaire) blocks.push(cond(horaire));
     blocks.push(cond([B('Lieu et Durée de travail : '), civ + U(4) + ' ', B(nom), U(4) + ' est amené(e) à assumer la fonction ' + (str(j.fonctionDetail) || str(j.emploi)) + (j.lieu ? ' à l’adresse suivante : ' + j.lieu : '') + '.']));
     str(d.clauses.mobilite).split(/(?<=\.)\s+(?=Les parties considèrent)/).filter(Boolean).forEach((t) => blocks.push(P(t, { li: 30, a: 'j', sa: 8 })));
@@ -102,9 +109,10 @@
       blocks.push(cond([B('Prévoyance Sociale : '), pm[1]], { sa: 4 }));
       ['Les risques professionnels', 'Retraite,', pm[2].charAt(0).toUpperCase() + pm[2].slice(1)].forEach((t, i, a) => blocks.push(P(t, { num: '♦', numB: 0, li: 62, hang: 22, a: 'l', sa: i === a.length - 1 ? 8 : 2 })));
     } else blocks.push(cond([B('Prévoyance Sociale : '), prev]));
-    const disc = str(d.clauses.discipline).split(/(?<=\.)\s+(?=De même)/);
+    const disc = str(d.clauses.discipline).split(/\n+|(?<=\.)\s+(?=De même)/);
     blocks.push(cond([B('Discipline – Secret Professionnel : '), disc[0]], { sa: disc[1] ? 6 : 8 }));
-    if (disc[1]) blocks.push(P(disc.slice(1).join(' '), { li: 30, a: 'j', sa: 8 }));
+    if (disc[1]) blocks.push(P(disc.slice(1).join(' '), { li: 30, a: 'j', sa: 6 }));
+    blocks.push(P(j.ncActif ? 'Si la rupture du contrat est imputable au travailleur, il lui est interdit, pendant ' + k.num(j.ncMois) + ' mois et dans un rayon de ' + k.num(j.ncKm) + ' kilomètres autour du lieu de travail, d’exercer une activité de nature à concurrencer l’employeur. Cette interdiction, nécessaire à la protection des intérêts légitimes de l’entreprise, donne lieu à une compensation financière de ' + k.amountWords(j.ncMontant) + ' (' + money(j.ncMontant) + ') francs CFA, convenue ce jour (article 295 du Code du travail).' : 'Aucune interdiction d’exercer une activité à l’expiration du contrat n’est stipulée (article 295 du Code du travail).', { li: 30, a: 'j', sa: 8 }));
 
     // VII. salaire — sans total (le « brut total » ne figure plus dans le contrat)
     blocks.push(P([BU('SALAIRE')], { num: 'VII.', li: 40, hang: 40, a: 'l', sb: 6, sa: 6, kn: 1, pb: 1 }));
@@ -113,7 +121,7 @@
     blocks.push({ k: 'tab', li: 32, widths: [220, 120], rows: rows.map(([l, v]) => [[R(l)], [B(money(v) + NB + 'FCFA')]]) });
 
     blocks.push(P([civ + U(3) + ' ', B(nom), U(4) + ' déclare formellement n’être lié(e) à aucun Employeur et être libre de tout engagement.'], { num: 'VIII.', li: 40, hang: 40, a: 'j', sb: 18, sa: 10 }));
-    const copie = j.copieInspection ? ' et (copie adressée à l’Inspection régionale du travail et de la sécurité sociale de ' + str(j.lieuSignature) + ')' : '';
+    const copie = '';
     blocks.push(P('Le présent contrat est établi à ' + str(j.lieuSignature) + ' en ' + inWords(j.exemplaires) + ' exemplaires originaux' + copie + '.', { li: 140, a: 'j', sb: 28, sa: 22, kn: 1 }));
     const date = str(j.lieuSignature) + ', le ' + k.longDate(j.dateContrat || j.dateEngagement);
     blocks.push(P(date, cdd ? { a: 'c', sa: 30, kn: 1 } : { li: 140, a: 'l', sa: 30, kn: 1 }));

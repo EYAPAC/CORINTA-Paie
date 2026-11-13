@@ -99,7 +99,7 @@ test('durée en toutes lettres et clause de durée du CDD', () => {
   assert.equal(C.durationWords('2026-11-01', '2026-11-20'), 'vingt (20) jours');
   assert.equal(C.numWords(21), 'vingt et un'); assert.equal(C.numWords(75), 'soixante-quinze'); assert.equal(C.numWords(80), 'quatre-vingts');
   const c = filled(); C.switchType(c, 'CDD'); c.job.dateEngagement = '2023-09-01'; c.job.dateFin = '2025-09-01';
-  assert.equal(C.dureeText(c), 'Le présent contrat est prévu pour une durée de deux (02) ans, du 01 Septembre 2023 au 01 Septembre 2025.');
+  assert.ok(C.dureeText(c).startsWith('Le présent contrat est prévu pour une durée de deux (02) ans, du 01 Septembre 2023 au 01 Septembre 2025.')); assert.ok(/articles 100, 102 et 103 du Code du travail/.test(C.dureeText(c)));
   const p = filled(); C.switchType(p, 'CDD_PROJET'); p.job.projetNom = 'Alpha'; p.job.projetObjet = 'appui à la coordination régionale'; p.job.dateFin = '2027-06-30';
   const txt = C.dureeText(p); assert.ok(/pour la durée du projet « Alpha », appui à la coordination régionale/.test(txt)); assert.ok(/prévue le 30 Juin 2027/.test(txt));
   assert.equal(C.dureeText(filled()), '');

@@ -67,24 +67,24 @@
   /* Clauses du modèle (modifiables contrat par contrat). */
   const CLAUSES = {
     references: [
-      'Loi n° 97-17 du 1er décembre 1997 instituant le Code du travail du Sénégal et ses textes d’application. L’entrée en vigueur du présent contrat et sa prise d’effet entre les parties sont subordonnées, conformément aux articles L33 et L34 du Code du travail, à l’obtention du visa d’approbation de l’autorité compétente.',
+      'Loi n° 2026-18 du 3 septembre 2026 portant Code du travail du Sénégal et ses textes d’application.',
       'La Convention collective nationale interprofessionnelle du 30 décembre 2019.',
       'La Convention collective nationale du commerce du 16 novembre 1956.',
       'Les accords et règlements de l’entreprise.'
     ],
-    conges: 'Le travailleur bénéficiera de congés payés conformément aux articles L148 et L150 du Code du travail, ainsi qu’aux dispositions prévues par la Convention collective nationale interprofessionnelle.',
+    conges: 'Le travailleur bénéficiera de congés payés conformément aux articles 248 et 249 du Code du travail (deux (02) jours ouvrables par mois de service effectif, sauf stipulations plus favorables de la convention collective), ainsi qu’aux dispositions prévues par la Convention collective nationale interprofessionnelle.',
     prevoyance: 'Le travailleur bénéficie des dispositions légales et réglementaires en vigueur sur : les risques professionnels, la retraite, la maladie, y compris pour son conjoint et ses enfants à charge, suivant les statuts et le règlement intérieur de l’Institution de prévoyance maladie.',
-    discipline: 'Le travailleur s’engage au respect de la discipline. Sauf dans le cadre de ses obligations professionnelles, il gardera le secret sur les informations dont il a eu connaissance par le fait ou à l’occasion de l’exercice de ses fonctions, notamment sur les procédés et résultats de travaux réalisés par l’entreprise. De même, le travailleur accepte de mettre en pratique l’obligation de non-concurrence tant au moment de l’exécution de son contrat de travail qu’après sa rupture.',
+    discipline: 'Le travailleur s’engage au respect de la discipline. Sauf dans le cadre de ses obligations professionnelles, il gardera le secret sur les informations dont il a eu connaissance par le fait ou à l’occasion de l’exercice de ses fonctions, notamment sur les procédés et résultats de travaux réalisés par l’entreprise.\nPendant l’exécution du contrat, le travailleur consacre toute son activité professionnelle à l’entreprise, sauf dérogation stipulée au contrat ; il lui est loisible d’exercer, en dehors de son temps de travail, toute activité professionnelle non susceptible de concurrencer l’entreprise ou de nuire à la bonne exécution des services convenus (article 295 du Code du travail).',
     mobilite: 'Cependant, il pourrait servir dans tout établissement appartenant à l’employeur et situé sur le territoire sénégalais. Les parties considèrent que l’affectation à un autre établissement n’est pas consécutive d’une modification des clauses contractuelles.'
   };
 
   /* Clauses propres aux contrats à durée déterminée (modèle CDD) ; {duree} {debut} {fin} {projet} {objet} {finPrevue} sont remplacés à l'édition. */
   const CLAUSES_CDD = {
-    conges: 'Le travailleur bénéficiera de congés payés conformément aux articles 54 et suivants de la Convention collective nationale interprofessionnelle.',
+    conges: 'Le travailleur bénéficiera de congés payés conformément aux articles 248 et 249 du Code du travail (deux (02) jours ouvrables par mois de service effectif, sauf stipulations plus favorables de la convention collective) et aux articles 54 et suivants de la Convention collective nationale interprofessionnelle.',
     mobilite: 'Cependant, il pourrait servir dans tout bureau ou établissement de l’employeur situé dans la zone d’affectation indiquée ci-dessus. Les parties considèrent que l’affectation à un autre bureau ou établissement de l’employeur n’est pas consécutive à une modification des clauses contractuelles.',
     duree: {
-      CDD: 'Le présent contrat est prévu pour une durée de {duree}, du {debut} au {fin}.',
-      CDD_PROJET: 'Le présent contrat est conclu pour la durée du projet « {projet} »{objet}. Il prend effet le {debut} et prend fin de plein droit à l’achèvement du projet{finPrevue}. Cette date n’est donnée qu’à titre prévisionnel : toute prolongation au-delà de la fin du projet ou de cette date fait l’objet d’un avenant écrit.'
+      CDD: 'Le présent contrat est prévu pour une durée de {duree}, du {debut} au {fin}. Il ne peut faire l’objet que d’un seul renouvellement ou d’une seule prolongation, par écrit et dans les conditions des articles 100, 102 et 103 du Code du travail ; la poursuite des services au-delà du terme, hors ces cas, vaut contrat à durée indéterminée (article 101).',
+      CDD_PROJET: 'Le présent contrat est conclu pour la durée du projet « {projet} »{objet}. Il prend effet le {debut} et prend fin de plein droit à l’achèvement du projet{finPrevue}. Cette date n’est donnée qu’à titre prévisionnel. Conclu pour l’exécution d’un ouvrage déterminé, le contrat ne peut être ni renouvelé ni prolongé (article 100 du Code du travail) ; la poursuite des services après l’achèvement du projet vaut contrat à durée indéterminée (article 101).'
     }
   };
   /* Clauses des contrats de prestation de services et lettres de commande (modifiables). Variables : {alias} {de} {preavis} {taux} {plafond}.
@@ -125,7 +125,7 @@
       id: uid(), number: '', status: 'brouillon', createdAt: today || '', updatedAt: today || '',
       employer: { prefixe: str(p.prefixe), name: str((company && (company.employer || company.name))), siege: str(p.siege), representant: str(p.representant), qualite: str(p.qualite) || 'gérant(e)', activite: str(p.activite), signataire: str(p.signataire) || 'Le Directeur Général' },
       worker: { civilite: 'Monsieur', nom: '', prenoms: '', sexe: 'M', naissance: '', lieuNaissance: '', pays: 'Sénégal', nationalite: 'Sénégalaise', pere: '', mere: '', domicile: '', famille: 'celibataire', enfants: 0, conjointRevenus: false, epouses: 0, nomsEpouses: '', nomsEnfants: '' },
-      job: { projetNom: '', projetObjet: '', fonctionDetail: '', copieInspection: false, emploi: '', classification: '', convention: 'Convention collective nationale du commerce du 16 novembre 1956', dateEngagement: '', type: 'CDI', dateFin: '', essaiMois: 3, essaiRenouvelable: true, horaire: 40, lieu: str(p.siege), lieuSignature: str(p.ville) || 'Dakar', dateContrat: '', exemplaires: 4 },
+      job: { projetNom: '', projetObjet: '', fonctionDetail: '', copieInspection: false, emploi: '', classification: '', convention: 'Convention collective nationale du commerce du 16 novembre 1956', dateEngagement: '', type: 'CDI', dateFin: '', essaiMois: 3, essaiRenouvelable: true, horaire: 40, lieu: str(p.siege), lieuSignature: str(p.ville) || 'Dakar', dateContrat: '', exemplaires: 4, ncActif: false, ncMois: 6, ncKm: 30, ncMontant: 0 },
       salary: { base: 0, sursalaire: 0, logement: 0, anciennetePct: 0, transport: 0 },
       service: serviceDefaults(p, company && (company.employer || company.name)),
       clauses: { references: CLAUSES.references.slice(), conges: CLAUSES.conges, prevoyance: CLAUSES.prevoyance, discipline: CLAUSES.discipline, mobilite: CLAUSES.mobilite, duree: '' },
@@ -133,6 +133,14 @@
     };
   }
 
+  /* Textes par défaut de l'ancien Code du travail (loi n° 97-17, abrogée par la loi n° 2026-18) : remplacés à l'ouverture d'un contrat enregistré, sauf s'ils ont été personnalisés. */
+  const LEGACY = {
+    ref0: 'Loi n° 2026-18 du 3 septembre 2026 portant Code du travail du Sénégal et ses textes d’application.',
+    conges: ['Le travailleur bénéficiera de congés payés conformément aux articles L148 et L150 du Code du travail, ainsi qu’aux dispositions prévues par la Convention collective nationale interprofessionnelle.', 'Le travailleur bénéficiera de congés payés conformément aux articles 54 et suivants de la Convention collective nationale interprofessionnelle.'],
+    discipline: 'Le travailleur s’engage au respect de la discipline. Sauf dans le cadre de ses obligations professionnelles, il gardera le secret sur les informations dont il a eu connaissance par le fait ou à l’occasion de l’exercice de ses fonctions, notamment sur les procédés et résultats de travaux réalisés par l’entreprise.\nPendant l’exécution du contrat, le travailleur consacre toute son activité professionnelle à l’entreprise, sauf dérogation stipulée au contrat ; il lui est loisible d’exercer, en dehors de son temps de travail, toute activité professionnelle non susceptible de concurrencer l’entreprise ou de nuire à la bonne exécution des services convenus (article 295 du Code du travail).',
+    duree: ['Le présent contrat est prévu pour une durée de {duree}, du {debut} au {fin}.', 'Le présent contrat est conclu pour la durée du projet « {projet} »{objet}. Il prend effet le {debut} et prend fin de plein droit à l’achèvement du projet{finPrevue}. Cette date n’est donnée qu’à titre prévisionnel. Conclu pour l’exécution d’un ouvrage déterminé, le contrat ne peut être ni renouvelé ni prolongé (article 100 du Code du travail) ; la poursuite des services après l’achèvement du projet vaut contrat à durée indéterminée (article 101).']
+  };
+  const isForeign = (n) => { const s = str(n).toLowerCase(); return !!s && !/s[ée]n[ée]gal/.test(s); };
   /** Complète un contrat enregistré avec les valeurs par défaut manquantes (anciens enregistrements). */
   function normalize(c, company) {
     const b = blankContract(company, '');
@@ -143,6 +151,10 @@
     out.service.clauses = Object.assign({}, b.service.clauses, (c && c.service && c.service.clauses) || {});
     out.service.moyens = Object.assign({}, b.service.moyens, (c && c.service && c.service.moyens) || {});
     ['taches', 'jalons'].forEach((k) => { if (!Array.isArray(out.service[k])) out.service[k] = []; });
+    if (out.clauses.references[0] === LEGACY.ref0) out.clauses.references[0] = CLAUSES.references[0];
+    if (LEGACY.conges.includes(out.clauses.conges)) out.clauses.conges = cddClause('conges', out.job.type);
+    if (out.clauses.discipline === LEGACY.discipline) out.clauses.discipline = CLAUSES.discipline;
+    if (LEGACY.duree.includes(out.clauses.duree)) out.clauses.duree = cddClause('duree', out.job.type);
     if (!STATUS.includes(out.status)) out.status = 'brouillon';
     if (!TYPE_LABEL[out.job.type]) out.job.type = 'CDI';
     if (isCdd(out.job.type) && !str(out.clauses.duree)) out.clauses.duree = CLAUSES_CDD.duree[out.job.type];
@@ -259,9 +271,19 @@
       else if (iso(j.dateEngagement) && j.dateFin <= j.dateEngagement) errors.push('La fin prévisionnelle du projet doit être postérieure à la date d’engagement.');
       if (!str(j.projetObjet)) warnings.push('Objet du projet non renseigné.');
     }
-    if (isCdd(j.type) && monthsBetween(j.dateEngagement, j.dateFin) > 24) warnings.push('Durée supérieure à 24 mois : vérifiez la durée maximale légale des contrats à durée déterminée (renouvellements compris).');
+    if (j.type === 'CDD' && iso(j.dateEngagement) && iso(j.dateFin) && Math.round((dayDiff(j.dateEngagement, j.dateFin) + 1) / 30.44) > 24) errors.push('Un CDD à terme précis ne peut pas dépasser deux (02) ans (article 100 du Code du travail) : raccourcissez-le, ou choisissez « CDD pour la durée d’un projet » si le contrat porte sur un ouvrage déterminé.');
+    if (isCdd(j.type)) warnings.push('Rappel CDD : il ne peut pas pourvoir durablement un emploi lié à l’activité normale et permanente de l’entreprise, sous peine de valoir CDI (article 97), et doit être déposé à l’inspection du travail avant tout début d’exécution (article 99).');
+    if (num(j.essaiMois) > 6) errors.push('La période d’essai ne peut pas dépasser six (06) mois, renouvellement et prolongation compris (article 94 du Code du travail).');
+    else if (j.essaiRenouvelable && num(j.essaiMois) * 2 > 6) warnings.push('Essai renouvelable : renouvellement compris, la durée totale ne peut pas dépasser six (06) mois (article 94) ; le renouvellement devra être limité en conséquence.');
+    if (num(j.horaire) > 40) warnings.push('Horaire supérieur à la durée légale de 40 heures par semaine (article 241) : les heures au-delà sont des heures supplémentaires (article 244).');
+    if (isForeign(w.nationalite)) warnings.push('Travailleur étranger : le contrat doit être écrit et visé par le Directeur général du Travail et de la Sécurité sociale avant tout début d’exécution, sous peine de nullité (article 105 du Code du travail).');
+    if (j.ncActif) {
+      if (num(j.ncMois) <= 0 || num(j.ncMois) > 6) errors.push('Interdiction de concurrence après le contrat : six (06) mois au maximum (article 295 du Code du travail).');
+      if (num(j.ncKm) <= 0 || num(j.ncKm) > 30) errors.push('Interdiction de concurrence après le contrat : rayon de trente (30) kilomètres au maximum autour du lieu de travail (article 295).');
+      if (!(num(j.ncMontant) > 0)) errors.push('Interdiction de concurrence après le contrat : une compensation financière, convenue à la signature, est obligatoire (article 295) ; à défaut la clause est nulle.');
+    }
     ['base', 'sursalaire', 'logement', 'anciennetePct', 'transport'].forEach((k) => { if (num(s[k]) < 0) errors.push('Le montant « ' + k + ' » ne peut pas être négatif.'); });
-    if (iso(w.naissance)) { const age = dayDiff(w.naissance, (j.dateEngagement && iso(j.dateEngagement)) || new Date().toISOString().slice(0, 10)) / 365.25; if (age < 15) errors.push('Le travailleur doit avoir au moins 15 ans à la date d’engagement.'); if (age > 75) warnings.push('Âge supérieur à 75 ans : vérifiez la date de naissance.'); }
+    if (iso(w.naissance)) { const age = dayDiff(w.naissance, (j.dateEngagement && iso(j.dateEngagement)) || new Date().toISOString().slice(0, 10)) / 365.25; if (age < 15) errors.push('Le travailleur doit avoir au moins 15 ans à la date d’engagement.'); if (age > 75) warnings.push('Âge supérieur à 75 ans : vérifiez la date de naissance.'); if (age >= 15 && age < 18) warnings.push('Jeune travailleur (moins de 18 ans) : le contrat est signé par son représentant légal et visé par l’inspecteur du travail et de la sécurité sociale avant tout début d’exécution, sous peine de nullité (article 106 du Code du travail).'); }
     else warnings.push('Date de naissance non renseignée.');
     if (!str(w.lieuNaissance)) warnings.push('Lieu de naissance non renseigné.');
     if (!str(w.domicile)) warnings.push('Domicile non renseigné.');
@@ -324,12 +346,12 @@
       }
       const te = trialEnd(c);
       if (te) { const d = dayDiff(today, te); if (d >= 0 && d <= 15) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: 'Fin de période d’essai de ' + name + ' le ' + te.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
-      if (isCdd(j.type) && iso(j.dateFin)) { const d = dayDiff(today, j.dateFin), what = j.type === 'CDD_PROJET' ? 'La fin prévisionnelle du projet' + (str(j.projetNom) ? ' « ' + str(j.projetNom) + ' »' : '') + ' (CDD de ' + name + ')' : 'Le CDD de ' + name; if (d < 0) out.push({ id: c.id, level: 'late', text: what + ' est dépassé' + (j.type === 'CDD_PROJET' ? 'e' : '') + ' depuis ' + Math.abs(d) + ' j : renouveler ou clôturer.' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: what + ' arrive à échéance le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
+      if (isCdd(j.type) && iso(j.dateFin)) { const d = dayDiff(today, j.dateFin), what = j.type === 'CDD_PROJET' ? 'La fin prévisionnelle du projet' + (str(j.projetNom) ? ' « ' + str(j.projetNom) + ' »' : '') + ' (CDD de ' + name + ')' : 'Le CDD de ' + name; if (d < 0) out.push({ id: c.id, level: 'late', text: what + ' est dépassé' + (j.type === 'CDD_PROJET' ? 'e' : '') + ' depuis ' + Math.abs(d) + ' j : renouveler par écrit (un seul renouvellement, articles 100 et 103) ou clôturer — la poursuite des services vaudrait CDI de plein droit (article 101).' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: what + ' arrive à échéance le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
       if (!c.dmt || c.dmt.status !== 'établie') out.push({ id: c.id, level: 'info', text: 'DMT à établir pour ' + name + '.' });
     });
     return out;
   }
 
-  const api = { TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
+  const api = { isForeign, LEGACY, TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContracts = api;
 })(typeof window !== 'undefined' ? window : globalThis);
