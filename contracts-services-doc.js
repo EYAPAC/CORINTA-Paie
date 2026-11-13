@@ -67,6 +67,7 @@
     const art = (title) => P([BU('Article ' + (++n)), B(' : ' + title)], { a: 'l', sb: 12, sa: 6, kn: 1 });
     const body = (txt, o) => P(txt, Object.assign({ a: 'j', sa: 6, ln: 1.15 }, o));
     blocks.push({ k: 'box', lines: ['CONTRAT DE PRESTATION', 'DE SERVICES'] });
+    if (str(s.numero)) blocks.push(P([R('Contrat n° ' + str(s.numero), { b: 1 })], { a: 'c', sb: 8 }));
     blocks.push(P(['Entre ', employerRuns(c), ','], { a: 'j', sb: 30, sa: 6, ln: 1.15 }), body(['Ci-après dénommé(e) « ', B(c.alias), ' »,']), P('Et', { a: 'l', sa: 6 }));
     blocks.push(body([providerRuns(c), ', ' + c.denomme + ' ci-après « ', B('le Prestataire'), ' ».']), body('Il a été convenu et arrêté ce qui suit :', { sb: 4 }));
 

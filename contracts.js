@@ -114,9 +114,18 @@
     if (curNom && newNom && curNom !== newNom && !confirm('Le contrat en cours concerne ' + d.worker.nom + '. Remplacer ses informations par celles de ' + cand.fields['worker.nom'] + ' ?')) return;
     const applied = IM.apply(d, cand.fields, only);
     if (applied.includes('job.type')) { const keep = d.job.type; d.job.type = 'CDI'; K.switchType(d, keep); }
+    if (applied.includes('service.numero')) d.service.numeroAuto = false; else if (K.isService(d.job.type)) autoNumber(d);   // numéro repris du fichier importé : conservé ; sinon numéro automatique
     if (d.worker.famille === 'marie' && !d.worker.epouses) d.worker.epouses = 1;
     view.imported = new Set(applied); view.afterImport = true; view.imp = null; view.net = null;
     commit(); setMsg(applied.length + ' informations importées : complétez les champs signalés.'); toast(applied.length + ' informations importées dans le contrat'); render(); setTimeout(updateDerived, 30);
+  }
+
+  /* ───────── Numérotation automatique (lettres de commande, contrats de prestation) ───────── */
+  /** Calcule le numéro suivant tant que l'utilisateur ne l'a pas modifié à la main (numeroAuto) ; met à jour le champ affiché. */
+  function autoNumber(d) {
+    if (!K.isService(d.job.type) || d.service.numeroAuto === false) return;
+    const c = company(); d.service.numero = K.nextServiceNumber(c ? contractsOf(c) : [], d); d.service.numeroAuto = true;
+    const el = $('ct_service_numero'); if (el) el.value = d.service.numero;
   }
 
   /* ───────── Enregistrement ───────── */
@@ -126,9 +135,10 @@
     const list = contractsOf(c);
     d.updatedAt = todayISO(); if (!d.createdAt) d.createdAt = d.updatedAt;
     if (!d.number) d.number = K.nextNumber(list, d.updatedAt, d.job.type);
+    if (K.isService(d.job.type) && (!str(d.service.numero) || (d.service.numeroAuto !== false && K.duplicateNumero(list, d)))) { d.service.numeroAuto = true; autoNumber(d); }
     if (K.isService(d.job.type) && str(d.service.projet)) { const pj = K.ensureProject(c.projects = Array.isArray(c.projects) ? c.projects : [], d.service.projet, d.service.client); if (pj) { d.service.projetId = pj.id; d.service.projet = pj.name; if (!pj.client && str(d.service.client)) pj.client = str(d.service.client); } }
     const i = list.findIndex((x) => x.id === d.id); if (i >= 0) list[i] = clone(d); else list.unshift(clone(d));
-    c.profile = Object.assign({}, c.profile, { siege: d.employer.siege, representant: d.employer.representant, qualite: d.employer.qualite, activite: d.employer.activite, signataire: d.employer.signataire, ville: d.job.lieuSignature, alias: d.service && d.service.alias });
+    c.profile = Object.assign({}, c.profile, { siege: d.employer.siege, representant: d.employer.representant, qualite: d.employer.qualite, activite: d.employer.activite, signataire: d.employer.signataire, ville: d.job.lieuSignature, alias: d.service && d.service.alias, numPattern: d.service && d.service.numPattern, numScope: d.service && d.service.numScope });
     persistOrg(); view.dirty = false;
     setMsg('Enregistré · ' + new Date().toLocaleTimeString('fr-FR') + ' · ' + d.number); refreshMeta();
     return true;
@@ -236,7 +246,8 @@
   const card = (title, sub, body) => '<article class="cp-card ws-form"><h2>' + esc(title) + '</h2>' + (sub ? '<p class="cp-sub">' + sub + '</p>' : '') + '<div class="ws-grid-fields">' + body + '</div></article>';
 
   function issuesHTML(d) {
-    const v = K.validate(d);
+    const v = K.validate(d), dup = K.isService(d.job.type) && company() ? K.duplicateNumero(contractsOf(company()), d) : null;
+    if (dup) v.warnings = ['Le numéro ' + d.service.numero + ' est déjà utilisé par un autre document de même type (réf. ' + (dup.number || '—') + ') : corrigez-le ou cliquez sur « Numéro automatique suivant ».'].concat(v.warnings);
     return (v.errors.length ? '<ul class="ct-issues err">' + v.errors.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul>' : '<p class="ct-ok">✔ Informations essentielles complètes.</p>') + (v.warnings.length ? '<ul class="ct-issues">' + v.warnings.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul>' : '');
   }
   function derivedHTML(d) {
@@ -327,7 +338,10 @@
       card('Mission', ldc ? 'Lettre de commande : titre de l’activité, tâches et lieu d’exécution.' : 'Contrat de prestation : objet, tâches et normes d’exécution.',
         S('intitule', 'Titre de l’activité / de la mission', { wide: true, placeholder: 'Étude de faisabilité de …' }) + J('emploi', 'Fonction / profil du prestataire', { placeholder: 'Assistant de projet, Ingénieur HSE…' }) + S('client', 'Client final', { placeholder: 'ANAT, AGEROUTE…' }) +
         S('contratPrincipal', 'Intitulé du contrat principal du client', { wide: true }) + S('taches', 'Tâches du prestataire (une par ligne)', { type: 'textarea', rows: 7 }) +
-        S('supervision', 'Interlocuteur de coordination (avec article)', { placeholder: 'le Chef de projet de MSA', title: 'Parlez de coordination et de validation des livrables, pas de « supervision directe » : cela évite un lien de subordination.' }) + J('lieu', 'Lieu d’exécution') + S('risques', 'Mission dans des locaux ou sur un chantier pouvant présenter des risques particuliers (ajoute la clause de sécurité)', { type: 'checkbox' }) + (ldc ? S('numero', 'N° de la lettre de commande', { placeholder: String(d.number || 'LDC-AAAA-001') }) : '')) +
+        S('supervision', 'Interlocuteur de coordination (avec article)', { placeholder: 'le Chef de projet de MSA', title: 'Parlez de coordination et de validation des livrables, pas de « supervision directe » : cela évite un lien de subordination.' }) + J('lieu', 'Lieu d’exécution') + S('risques', 'Mission dans des locaux ou sur un chantier pouvant présenter des risques particuliers (ajoute la clause de sécurité)', { type: 'checkbox' })) +
+      card('Numéro du document', 'Généré automatiquement dès le choix du type et du projet (01, 02, 03… à la suite des documents de même type) : vous pouvez le corriger, il n’est alors plus recalculé. Vider le champ ou cliquer sur « Numéro automatique suivant » relance la numérotation.',
+        S('numero', ldc ? 'N° de la lettre de commande' : 'N° du contrat de prestation', { placeholder: 'Généré automatiquement' }) + S('numPattern', 'Format de la numérotation', { placeholder: '{NN}/{AAAA}', title: '{NN} = 01, 02… ; {NNN} = 001 ; {N} = 1 ; {AAAA} = année ; {AA} = année sur 2 chiffres ; {MM} = mois ; {TYPE} = LDC ou CPS' }) +
+        S('numScope', 'La suite des numéros repart…', { type: 'select', options: [['type', 'chaque année, par type de document'], ['projet', 'à 01 pour chaque projet']] }) + '<div class="ws-field"><label>&nbsp;</label><button type="button" class="cp-btn" data-ct="num-auto">↻ Numéro automatique suivant</button></div>') +
       card('Durée et signature', 'Dates d’exécution de la mission.',
         J('dateEngagement', 'Début d’exécution', { type: 'date' }) + J('dateFin', 'Fin prévue', { type: 'date' }) + J('lieuSignature', 'Établi à') + J('dateContrat', 'Date du document', { type: 'date', title: 'Par défaut : date de début' }) + J('exemplaires', 'Nombre d’exemplaires', { type: 'number' })) +
       card('Honoraires et paiement', 'Montants en FCFA. Pour limiter le risque de requalification en contrat de travail, préférez un prix global payé par livrable.',
@@ -390,7 +404,7 @@
   const STATUS_TONE = { 'brouillon': 'neutral', 'signé': 'info', 'en cours': 'success', 'terminé': 'neutral' };
   function listHTML(c) {
     const all = contractsOf(c).map((x) => K.normalize(x, c)), q = view.q.trim().toLocaleLowerCase('fr');
-    const rows = all.filter((x) => (!view.fStatus || x.status === view.fStatus) && (!view.fType || x.job.type === view.fType) && (!view.fProjet || str(x.service && x.service.projet) === view.fProjet) && (!q || (K.fullName(x.worker) + ' ' + x.job.emploi + ' ' + x.number).toLocaleLowerCase('fr').includes(q)))
+    const rows = all.filter((x) => (!view.fStatus || x.status === view.fStatus) && (!view.fType || x.job.type === view.fType) && (!view.fProjet || str(x.service && x.service.projet) === view.fProjet) && (!q || (K.fullName(x.worker) + ' ' + x.job.emploi + ' ' + x.number + ' ' + str(x.service && x.service.numero)).toLocaleLowerCase('fr').includes(q)))
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     const alerts = K.alertsOf(all, todayISO()).filter((a) => a.level !== 'info' || all.length <= 12);
     const projNames = [...new Set(all.filter((x) => K.isService(x.job.type)).map((x) => str(x.service.projet)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
@@ -399,7 +413,7 @@
     const act = (a, ic, label, id) => '<button type="button" class="cp-act' + (a === 'del' ? ' danger' : '') + '" title="' + esc(label) + '" aria-label="' + esc(label) + '" data-ct="' + a + ':' + esc(id) + '">' + icon(ic) + '</button>';
     const body = rows.map((x) => {
       const dm = K.isService(x.job.type) ? ['—', 'neutral'] : DMT_LABEL(x), te = K.trialEnd(x), end = K.isService(x.job.type) ? (x.job.dateFin ? 'Fin : ' + frDate(x.job.dateFin) : '—') : K.isCdd(x.job.type) ? (x.job.type === 'CDD_PROJET' ? 'Fin du projet' + (x.job.projetNom ? ' « ' + x.job.projetNom + ' »' : '') + (x.job.dateFin ? ' : ' + frDate(x.job.dateFin) : '') : frDate(x.job.dateFin)) : (te ? 'Essai jusqu’au ' + frDate(te) : '—');
-      return '<tr><td class="nw">' + esc(x.number || '—') + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(K.TYPE_SHORT[x.job.type] || x.job.type) + '</td><td>' + esc(K.isService(x.job.type) ? str(x.service.projet) || '—' : '—') + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
+      return '<tr><td class="nw" title="Référence interne ' + esc(x.number || '—') + '">' + esc(K.isService(x.job.type) && str(x.service.numero) ? x.service.numero : (x.number || '—')) + '</td><td><button type="button" class="cp-person cp-person-btn" data-ct="edit:' + esc(x.id) + '" title="Ouvrir le contrat pour le modifier"><span class="cp-avatar">' + esc(D.initials(K.fullName(x.worker))) + '</span><div><b>' + esc(K.fullName(x.worker) || '—') + '</b><span>' + esc(x.job.emploi || '—') + '</span></div></button></td><td>' + esc(K.TYPE_SHORT[x.job.type] || x.job.type) + '</td><td>' + esc(K.isService(x.job.type) ? str(x.service.projet) || '—' : '—') + '</td><td class="nw">' + esc(frDate(x.job.dateEngagement) || '—') + '</td><td>' + esc(end) + '</td>' +
         '<td><select class="ct-mini" aria-label="Statut du contrat de ' + esc(K.fullName(x.worker)) + '" data-ct-status="' + esc(x.id) + '">' + K.STATUS.map((s) => '<option' + (x.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select></td><td><span class="cp-badge ' + dm[1] + '">' + dm[0] + '</span></td>' +
         '<td><div class="cp-actions">' + act('edit', 'eye', 'Ouvrir / modifier le contrat', x.id) + act('dl-contract', 'download', 'Télécharger le contrat (Word)', x.id) + act('print-contract', 'printer', 'Imprimer le contrat (PDF)', x.id) + (K.isService(x.job.type) ? act('pay-open', 'file2', 'Bulletins d’honoraires du prestataire', x.id) : act('dmt', 'file', 'Créer ou ouvrir la DMT', x.id)) + act('dup', 'plus', 'Dupliquer comme modèle', x.id) + act('del', 'trash', 'Supprimer le contrat', x.id) + '</div></td></tr>';
     }).join('');
@@ -434,6 +448,7 @@
     else if (a === 'new') newDraft();
     else if (a === 'edit') openDraft(arg, 'contract');
     else if (a === 'dmt') openDraft(arg, 'dmt');
+    else if (a === 'num-auto') { view.draft.service.numeroAuto = true; autoNumber(view.draft); commit(); toast('Numéro généré : ' + view.draft.service.numero); updateDerived(); }
     else if (a === 'pay-add') addPayment();
     else if (a === 'pay-view' || a === 'pay-print') openPay(arg, a === 'pay-print');
     else if (a === 'pay-dl') { const r = (view.draft.paiements || []).find((x) => x.id === arg); if (r) downloadDoc('paiement', view.draft, r); }
@@ -471,6 +486,8 @@
     if (p === 'service.jalons') v = K.parseJalons(v);
     if (p.indexOf('dmt.') === 0 && !view.draft.dmt) view.draft.dmt = {};
     if (p === 'job.type') K.switchType(view.draft, v); else setPath(view.draft, p, v);
+    if (p === 'service.numero') view.draft.service.numeroAuto = !str(v);   // saisie manuelle : plus de recalcul ; champ vidé : retour au numéro automatique
+    if (K.isService(view.draft.job.type) && (/^(job\.type|job\.dateContrat|job\.dateEngagement|service\.projet|service\.numPattern|service\.numScope)$/.test(p) || (p === 'service.numero' && !str(v)))) autoNumber(view.draft);
     view.dirty = true; queueCommit();
   }
   function input(e) {

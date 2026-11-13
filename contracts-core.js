@@ -109,7 +109,7 @@
     finales: 'Le présent contrat exprime l’intégralité de l’accord des parties sur son objet. Toute modification ou prolongation fait l’objet d’un avenant écrit signé des deux parties. Si l’une de ses stipulations était déclarée nulle, les autres demeureraient applicables.'
   };
   const serviceDefaults = (p, name) => ({
-    alias: str(p && p.alias) || deriveAlias(name), cin: '', tel: '', email: '', ninea: '', numero: '',
+    alias: str(p && p.alias) || deriveAlias(name), cin: '', tel: '', email: '', ninea: '', numero: '', numeroAuto: true, numPattern: str(p && p.numPattern) || '{NN}/{AAAA}', numScope: str(p && p.numScope) === 'projet' ? 'projet' : 'type',
     intitule: '', client: '', contratPrincipal: '', taches: [], supervision: '', risques: false, projet: '', projetId: '',
     remunMode: 'global', montant: 0, nature: 'brut', perdiem: 0, jalons: [], delaiPaiement: 30, apresClient: false,
     moyens: { virement: true, cheque: true, mobile: false }, penaliteTaux: 0, penalitePlafond: 10, preavis: 15, litige: 'tribunal',
@@ -156,6 +156,7 @@
     if (out.clauses.discipline === LEGACY.discipline) out.clauses.discipline = CLAUSES.discipline;
     if (LEGACY.duree.includes(out.clauses.duree)) out.clauses.duree = cddClause('duree', out.job.type);
     if (!Array.isArray(out.paiements)) out.paiements = [];
+    if (c && c.service && str(c.service.numero) && c.service.numeroAuto === undefined) out.service.numeroAuto = false;   // numéro saisi avant la numérotation automatique : conservé tel quel
     if (!STATUS.includes(out.status)) out.status = 'brouillon';
     if (!TYPE_LABEL[out.job.type]) out.job.type = 'CDI';
     if (isCdd(out.job.type) && !str(out.clauses.duree)) out.clauses.duree = CLAUSES_CDD.duree[out.job.type];
@@ -224,6 +225,45 @@
   /** « 30 | Livrable 1 : rapport de démarrage » (une échéance par ligne) ↔ [{ pct, libelle }]. */
   const parseJalons = (text) => String(text == null ? '' : text).split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => { const m = /^(\d+(?:[.,]\d+)?)\s*(?:%|\|)?\s*[|:–-]?\s*(.*)$/.exec(l); return m ? { pct: num(m[1]), libelle: str(m[2]) } : { pct: 0, libelle: l }; });
   const jalonsText = (arr) => (arr || []).map((x) => num(x.pct) + ' | ' + str(x.libelle)).join('\n');
+
+  /* ───────── Numérotation automatique : 01, 02, 03… par type de document (lettre de commande / contrat de prestation) et par année, ou par projet ───────── */
+  const NUM_PATTERN = '{NN}/{AAAA}';
+  const pad = (n, w) => String(n).padStart(w, '0');
+  /** Format valide : il doit contenir un compteur ({N}, {NN} ou {NNN}), sinon « -{NN} » est ajouté. */
+  const normalizePattern = (p) => { const s = str(p) || NUM_PATTERN; return /\{N{1,3}\}/.test(s) ? s : s + '-{NN}'; };
+  /** Numéro mis en forme : {NN} 01, {NNN} 001, {N} 1, {AAAA} 2026, {AA} 26, {MM} mois, {TYPE} LDC ou CPS. */
+  function formatNumero(pattern, seq, date, type) {
+    const d = iso(date) || new Date().toISOString().slice(0, 10), y = d.slice(0, 4);
+    return normalizePattern(pattern).replace(/\{NNN\}/g, pad(seq, 3)).replace(/\{NN\}/g, pad(seq, 2)).replace(/\{N\}/g, String(seq)).replace(/\{AAAA\}/g, y).replace(/\{AA\}/g, y.slice(2)).replace(/\{MM\}/g, d.slice(5, 7)).replace(/\{TYPE\}/g, type === 'LDC' ? 'LDC' : 'CPS');
+  }
+  /** Compteur et année lus dans un numéro existant selon le format (null si le numéro a été saisi dans un autre format). */
+  function numeroSeq(numero, pattern) {
+    let seqDone = false, yearDone = false;
+    const src = normalizePattern(pattern).replace(/[.*+?^$()|[\]\\\/-]/g, '\\$&').replace(/\{(NNN|NN|N|AAAA|AA|MM|TYPE)\}/g, (m, k) => {
+      if (k === 'N' || k === 'NN' || k === 'NNN') { if (!seqDone) { seqDone = true; return '(?<seq>\\d+)'; } return '\\d+'; }
+      if (k === 'AAAA') { if (!yearDone) { yearDone = true; return '(?<year>\\d{4})'; } return '\\d{4}'; }
+      if (k === 'AA') { if (!yearDone) { yearDone = true; return '(?<year>\\d{2})'; } return '\\d{2}'; }
+      return k === 'MM' ? '\\d{2}' : '[A-Z]+';
+    });
+    const m = new RegExp('^' + src + '$', 'i').exec(str(numero)); if (!m || !m.groups || m.groups.seq == null) return null;
+    const y = m.groups.year; return { seq: Number(m.groups.seq), year: y ? (y.length === 2 ? '20' + y : y) : '' };
+  }
+  /** Numéro suivant : plus grand compteur déjà utilisé (même type, même année, et même projet si la suite est « par projet ») + 1. */
+  function nextServiceNumber(list, d) {
+    const s = d.service || {}, pattern = normalizePattern(s.numPattern), scope = s.numScope === 'projet' ? 'projet' : 'type';
+    const date = iso(d.job.dateContrat) || iso(d.job.dateEngagement) || new Date().toISOString().slice(0, 10), usesYear = /\{AAAA\}|\{AA\}/.test(pattern); let max = 0;
+    (list || []).forEach((x) => {
+      if (!x || x.id === d.id || !x.job || x.job.type !== d.job.type || !x.service) return;
+      if (scope === 'projet' && str(x.service.projet).toLocaleLowerCase('fr') !== str(s.projet).toLocaleLowerCase('fr')) return;
+      const r = numeroSeq(x.service.numero, pattern); if (!r) return; if (usesYear && r.year && r.year !== date.slice(0, 4)) return; max = Math.max(max, r.seq);
+    });
+    return formatNumero(pattern, max + 1, date, d.job.type);
+  }
+  /** Autre document de même type déjà numéroté de la même façon (même projet si la suite est « par projet »), sinon null. */
+  function duplicateNumero(list, d) {
+    const n = str(d.service && d.service.numero).toLocaleLowerCase('fr'); if (!n) return null;
+    return (list || []).find((x) => x && x.id !== d.id && x.job && x.job.type === d.job.type && x.service && str(x.service.numero).toLocaleLowerCase('fr') === n && (d.service.numScope !== 'projet' || str(x.service.projet).toLocaleLowerCase('fr') === str(d.service.projet).toLocaleLowerCase('fr'))) || null;
+  }
 
   /** Projet de l'entreprise portant ce nom (casse ignorée) ; créé s'il n'existe pas. */
   function ensureProject(projects, name, client) {
@@ -405,6 +445,6 @@
     return out;
   }
 
-  const api = { ensureProject, serviceValue, computeHonoraires, validatePaiement, isForeign, LEGACY, TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
+  const api = { NUM_PATTERN, normalizePattern, formatNumero, numeroSeq, nextServiceNumber, duplicateNumero, ensureProject, serviceValue, computeHonoraires, validatePaiement, isForeign, LEGACY, TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContracts = api;
 })(typeof window !== 'undefined' ? window : globalThis);
