@@ -106,3 +106,10 @@ test('anciens contrats : la normalisation ajoute les paramètres de stage sans r
   const old = { id: 'x', job: { type: 'CDI' }, worker: { nom: 'A' } }, n = K.normalize(old, company);
   assert.equal(n.stage.heuresSemaine, 40); assert.equal(n.stage.preavis, 7); assert.ok(n.stage.clauses.formalites.includes('183'));
 });
+
+test('document vide : aperçu, Word et impression ne plantent pas pour les 5 types (champs « ……… »)', () => {
+  for (const type of ['CDI', 'CDD', 'PRESTATION', 'LDC', 'STAGE']) {
+    const d = K.blankContract({ name: '', profile: {} }, '2026-11-16'); K.switchType(d, type);
+    assert.ok(X.modelHtml(X.contractModel(d)).length > 500, type); assert.ok(unzip(X.modelDocx(X.contractModel(d), { title: 't' }))['word/document.xml'], type);
+  }
+});

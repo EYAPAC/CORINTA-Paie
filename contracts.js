@@ -215,7 +215,8 @@
   }
   function checked(d) {
     const v = K.validate(d);
-    if (!v.valid) { setMsg(v.errors[0], true); toast(v.errors[0]); if (WS.state.module === 'contract-new') render(); return false; }
+    /* Aperçu, impression et téléchargement restent toujours possibles : un document incomplet est produit avec des champs « ……… » et la liste des points à compléter est signalée. */
+    if (!v.valid) { const n = v.errors.length, msg = 'Document incomplet (' + n + ' point' + (n > 1 ? 's' : '') + ' à compléter) : ' + v.errors[0]; setMsg(msg, true); toast(msg); const iss = $('ctIssues'); if (iss) iss.innerHTML = issuesHTML(d); }
     return true;
   }
   function openDoc(kind, d, print) {
