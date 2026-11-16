@@ -202,7 +202,8 @@ test('Code du travail : articles réellement applicables cités, aucun article i
   const norm = (d) => unesc(wtext(docx(d)['word/document.xml'])).replace(/ /g, ' ');
   for (const type of ['PRESTATION', 'LDC']) {
     const w = norm(make(type));
-    ['article 3 du Code du travail (loi n° 2026-18 du 3 septembre 2026)', 'articles 284 et 285', 'articles 287 et 291', 'article 291', 'articles 288 et 289'].forEach((s) => assert.ok(w.includes(s), type + ' : ' + s));
+    if (type === 'PRESTATION') ['article 3 du Code du travail (loi n° 2026-18 du 3 septembre 2026)', 'articles 284 et 285', 'articles 287 et 291', 'article 291', 'articles 288 et 289'].forEach((s) => assert.ok(w.includes(s), type + ' : ' + s));
+    else { assert.ok(!/Le présent contrat est un contrat de prestation de services|respect de cette qualification|Régularité de l’activité|Personnel et sous-traitance|Force majeure|—/.test(w), 'LDC : textes retirés à la demande'); ['Article 7 : Pénalités', 'Article 8 : Résiliation', 'Article 9 : Litige', 'La commande peut être résiliée unilatéralement par chacune des parties en cas de manquement aux clauses du présent contrat.', 'Cette prescription est impérative'].forEach((s) => assert.ok(w.includes(s), 'LDC : ' + s)); }
     const cited = [...w.matchAll(/articles? ([d ,et]+?) du Code du travail|(articles? ([d ,et]+?))/g)].flatMap((m) => (m[1] || m[2]).match(/d+/g)).map(Number);
     const allowed = new Set([3, 284, 285, 287, 288, 289, 291, 313, 314, 316]); cited.forEach((n) => assert.ok(allowed.has(n), type + ' : article non vérifié ' + n));
     assert.ok(!/article 105|loi n° 97-17|travailleur étranger|visa/i.test(w), type + ' : aucune référence hors sujet');

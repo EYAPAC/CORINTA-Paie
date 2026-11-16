@@ -157,7 +157,6 @@
     blocks.push(art('Objet de la commande'));
     blocks.push(sub('2.1.', 'Définition de la prestation'));
     blocks.push(body([c.alias + ' requiert les services de ', B(c.nom), ', ' + c.denomme + ' ici Prestataire, en qualité ' + dd(str(j.emploi) || '………') + ', dans le cadre de « ' + (str(s.intitule) || '………') + ' »' + (str(s.client) ? ', confié à ' + c.alias + ' par ' + str(s.client) + ' (ci-après « le Client »)' : '') + (str(s.contratPrincipal) ? ', aux termes du contrat de prestation intitulé « ' + str(s.contratPrincipal) + ' »' : '') + '.']));
-    blocks.push(...clause(c, 'nature', { sa: 5 }));
     if (str(s.projet)) blocks.push(body('Cette mission s’inscrit dans le projet « ' + str(s.projet) + ' ».'));
     blocks.push(sub('2.2.', 'Description des tâches du Prestataire'));
     blocks.push(body('Les tâches du Prestataire sont les suivantes :', { sa: 3 }), ...tasks(c));
@@ -177,7 +176,7 @@
     blocks.push(sub('5.1.', 'Mode de règlement'));
     const mo = [s.moyens.virement && 'virement bancaire', s.moyens.cheque && 'chèque', s.moyens.mobile && 'paiement mobile'].filter(Boolean);
     blocks.push(body('Les paiements sont faits sur présentation de factures originales (ou de notes d’honoraires) pour les prestations réalisées, par ' + (lst(mo) || 'le moyen convenu entre les parties') + ', dans un délai de ' + (Math.round(c.K.num(s.delaiPaiement)) || 30) + ' jours à compter de la réception de la facture validée' + (s.apresClient ? ' et du paiement correspondant par le Client' : '') + '.'));
-    blocks.push(body('Pièces justificatives — tous les justificatifs originaux nécessaires sont fournis avec les factures, notamment :', { sa: 3 }), bullet('la facture ou la note d’honoraires ;'), bullet(s.remunMode === 'mensuel' ? 'les feuilles de temps faisant apparaître les jours de travail effectif, visées par ' + supervisor(c) + ' ;' : 'les livrables ou rapports validés par ' + supervisor(c) + '.'));
+    blocks.push(body('Pièces justificatives', { sa: 2 }), body('Tous les justificatifs originaux nécessaires seront fournis avec les factures, notamment :', { sa: 3 }), bullet('la facture ou la note d’honoraires ;'), bullet(s.remunMode === 'mensuel' ? 'les feuilles de temps faisant apparaître les jours de travail effectif, visées par ' + supervisor(c) + ' ;' : 'les livrables ou rapports validés par ' + supervisor(c) + '.'));
     blocks.push(body('L’absence ou la non-conformité des pièces justificatives peut entraîner la retenue des montants concernés.', { sb: 3 }));
     blocks.push(sub('5.2.', 'Paiement'));
     if (t.jalons.length) blocks.push(body('Les règlements s’effectueront sur présentation de facture après validation du coordonnateur du Projet comme suit :', { sa: 4 }), ...t.jalons.map((x) => bullet(x.pct + '% ' + (str(x.libelle) || 'Livrable') + (s.apresClient ? ' et paiement du client' : ''), { num: '➢', li: 40, hang: 16 })));
@@ -187,20 +186,18 @@
     blocks.push(art('Obligations du titulaire'));
     blocks.push(sub('6.1.', 'Réalisation de la prestation')); blocks.push(...clause(c, 'qualite'));
     blocks.push(sub('6.2.', 'Indépendance')); blocks.push(...clause(c, 'independance'));
-    blocks.push(sub('6.3.', 'Régularité de l’activité du Prestataire')); blocks.push(...clause(c, 'regularite'));
-    blocks.push(sub('6.4.', 'Personnel et sous-traitance')); blocks.push(...clause(c, 'personnel'));
-    let k6 = 4; const nx = () => '6.' + (++k6) + '.';
+    let k6 = 2; const nx = () => '6.' + (++k6) + '.';
     if (s.risques) { blocks.push(sub(nx(), 'Sécurité et santé au travail')); blocks.push(...clause(c, 'securite')); }
     blocks.push(sub(nx(), 'Confidentialité, données personnelles et propriété des livrables')); blocks.push(...clause(c, 'confidentialite'), ...clause(c, 'donnees'), ...clause(c, 'propriete'));
     blocks.push(sub(nx(), 'Conflit d’intérêts')); blocks.push(...clause(c, 'conflit'));
 
     blocks.push(art('Pénalités'));
-    if (c.K.num(s.penaliteTaux) > 0) blocks.push(...clause(c, 'penalites'));
-    else blocks.push(body('Si le Prestataire est dans l’impossibilité d’assurer les prestations qui lui sont confiées dans les délais prévus à l’article 3.2, il en avise ' + c.alias + ' immédiatement et, en tout état de cause, avant l’expiration du délai, et soumet dans le même temps à son appréciation les justifications présentant un caractère de force majeure ou autre qu’il pourrait fournir. Cette prescription est impérative.'));
-    blocks.push(art('Force majeure')); blocks.push(...clause(c, 'forceMajeure'));
-    blocks.push(art('Résiliation')); blocks.push(...clause(c, 'resiliation'));
-    blocks.push(art('Loi applicable et litiges'));
-    blocks.push(body('La présente lettre de commande est régie par le droit sénégalais. En l’absence de règlement amiable dans un délai de trente (30) jours à compter de la notification écrite du différend, ' + (s.litige === 'arbitrage' ? 'celui-ci est tranché par arbitrage conformément à l’Acte uniforme de l’OHADA relatif au droit de l’arbitrage (siège : Dakar ; droit sénégalais ; langue française).' : 'celui-ci est soumis aux juridictions compétentes de Dakar, désignées d’accord parties, pour toute contestation relative à l’interprétation ou à l’exécution de la présente lettre de commande.')));
+    blocks.push(body('Si le prestataire est dans l’impossibilité d’assurer les prestations qui lui sont confiées dans les délais prévus à l’article 3.2, il doit en aviser ' + c.alias + ' immédiatement et en tout état de cause avant expiration du délai et soumettre dans le même temps à l’appréciation ' + dd(c.alias) + ' les justifications présentant un caractère de force majeure ou autre, qu’il pourrait éventuellement fournir.'));
+    blocks.push(body('Cette prescription est impérative.'));
+    blocks.push(art('Résiliation'));
+    blocks.push(body('La commande peut être résiliée unilatéralement par chacune des parties en cas de manquement aux clauses du présent contrat.'));
+    blocks.push(art('Litige'));
+    blocks.push(body('En l’absence de règlement amiable, la juridiction locale appropriée est désignée, d’accord parties, pour connaître de tout litige entre le prestataire de services et ' + c.alias + ' relatif à l’interprétation ou à l’exécution de la présente lettre de commande.'));
 
     blocks.push(P('Fait en ' + c.K.withDigits(j.exemplaires || 2) + ' exemplaires originaux à ' + place(c) + ' le ' + (c.K.longDate(j.dateContrat || j.dateEngagement) || '………') + '.', { a: 'l', sb: 14, sa: 18, kn: 1 }));
     blocks.push(sigBlock(c, 'Le Prestataire de Services', 'Le Directeur du Cabinet'));
