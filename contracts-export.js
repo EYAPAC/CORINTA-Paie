@@ -354,9 +354,9 @@
     const clean = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ'’]/g, '').split(/[^A-Za-z0-9]+/).filter(Boolean).map((x) => x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()).join('');
     return clean(worker.nom) + clean(worker.prenoms) || 'Travailleur';
   }
-  const PREFIX = { LDC: 'LettreCommande_', PRESTATION: 'ContratPrestation_' };
+  const PREFIX = { LDC: 'LettreCommande_', PRESTATION: 'ContratPrestation_', STAGE: 'ContratStage_' };
   const fileName = (kind, d) => (kind === 'dmt' ? 'DMT_' : (PREFIX[(d.job || {}).type] || 'Contrat_')) + baseName(d.worker) + (kind === 'dmt' ? '.xlsx' : '.docx');
-  const fileNamePaiement = (d, rec) => 'BulletinHonoraires_' + baseName(d.worker) + '_' + (String((rec || {}).periode || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '') || 'paiement') + '.docx';
+  const fileNamePaiement = (d, rec) => ((d.job || {}).type === 'STAGE' ? 'EtatPaiementStage_' : 'BulletinHonoraires_') + baseName(d.worker) + '_' + (String((rec || {}).periode || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '') || 'paiement') + '.docx';
   const MIME = { docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
 
   const api = { H: { R, B, BU, U, P, sup, toRuns, money, frDate, K, NB }, serviceModels: {}, zip, crc32, contractModel, modelHtml, modelDocx, dmtData, dmtCells, dmtHtml, dmtXlsx, fileName, fileNamePaiement, MIME, CSS, serial };

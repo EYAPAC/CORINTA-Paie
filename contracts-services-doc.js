@@ -75,9 +75,11 @@
     blocks.push(body([c.alias + ' requiert les services de ' + c.civ + ' ', B(c.nom), ', ci-après le Prestataire, en qualité ', B(dd(str(j.emploi) || '………')), ', pour la mission suivante : ', B(str(s.intitule) || '………'), '.']));
     if (str(s.client) || str(s.contratPrincipal)) blocks.push(body([c.alias + ' s’est vu confier par ' + (str(s.client) || 'son client') + ' (ci-après « le Client »)' + (str(s.contratPrincipal) ? ', aux termes du contrat de prestation intitulé « ' + str(s.contratPrincipal) + ' »' : '') + ', une mission dans le cadre de laquelle intervient le Prestataire.']));
     if (str(s.projet)) blocks.push(body('Cette mission s’inscrit dans le projet « ' + str(s.projet) + ' ».'));
+    if (str(s.objet)) blocks.push(body(str(s.objet)));
     blocks.push(...clause(c, 'nature'));
 
     blocks.push(art('Missions et responsabilités du Prestataire'));
+    if (str(j.emploi)) blocks.push(body(['Fonction : ', B(str(j.emploi)), '.'], { sa: 3 }));
     blocks.push(body('Il assure, en particulier, les activités suivantes :', { sa: 3 }), ...tasks(c));
     blocks.push(body('Normes d’exécution — dans le cadre de l’exécution du contrat, le Prestataire :', { sb: 6, sa: 3 }));
     String(fillText(s.clauses.normes, s)).split(/\n+/).filter(Boolean).forEach((x) => blocks.push(bullet(x.trim())));
@@ -193,7 +195,89 @@
 
     blocks.push(P('Fait en ' + c.K.withDigits(j.exemplaires || 2) + ' exemplaires originaux à ' + place(c) + ' le ' + (c.K.longDate(j.dateContrat || j.dateEngagement) || '………') + '.', { a: 'l', sb: 14, sa: 18, kn: 1 }));
     blocks.push(sigBlock(c, 'Le Prestataire de Services', 'Le Directeur du Cabinet'));
-    return { kind: 'contract', blocks, font: 'Arial', sz: 10, margin: 2.5 };
+    return { kind: 'contract', blocks, font: 'Times New Roman', sz: 11, margin: 2.5 };
+  }
+
+  /* ───────── Contrat de stage (loi n° 2026-18, art. 3 et 183) ───────── */
+  function stageModel(d) {
+    const K = getK(), w = d.worker, j = d.job, e = d.employer, st = d.stage, s = d.service, fem = w.sexe === 'F', blocks = []; let n = 0;
+    const civ = fem ? (w.civilite === 'Mademoiselle' ? 'Mademoiselle' : 'Madame') : 'Monsieur', nom = K.fullName(w), alias = str(s.alias) || 'le Cabinet';
+    const vars = { S: fem ? 'La Stagiaire' : 'Le Stagiaire', s: fem ? 'la Stagiaire' : 'le Stagiaire', du: fem ? 'de la Stagiaire' : 'du Stagiaire', au: fem ? 'à la Stagiaire' : 'au Stagiaire' };
+    const fill = (txt) => String(txt || '').replace(/\{(S|s|du|au)\}/g, (m, k) => vars[k]).replace(/à \{alias\}/g, aa(alias)).replace(/\{alias\}/g, alias).replace(/\{de\}/g, K.deAlias(alias)).replace(/\{preavis\}/g, String(Math.round(K.num(st.preavis)) || 7));
+    const cl = (key) => fill(st.clauses[key]).split(/\n+/).map((x) => x.trim()).filter(Boolean).map((x) => P(x, { a: 'j', sa: 6, ln: 1.15 }));
+    const art = (title) => P([BU('Article ' + (++n)), B(' : ' + title)], { a: 'l', sb: 12, sa: 6, kn: 1 });
+    const body = (txt, o) => P(txt, Object.assign({ a: 'j', sa: 6, ln: 1.15 }, o));
+    const c = { e, K }, a = K.iso(j.dateEngagement), b = K.iso(j.dateFin), dur = K.durationWords(a, b), ind = Math.max(0, Math.round(K.num(st.indemnite)));
+    const stg = vars.S, stagLower = vars.s, numero = str(s.numero);
+    blocks.push({ k: 'box', lines: ['CONTRAT DE STAGE'] });
+    if (numero) blocks.push(P([R('Contrat n° ' + numero, { b: 1 })], { a: 'c', sb: 8 }));
+    blocks.push(P(['Entre ', employerRuns(c), ','], { a: 'j', sb: 30, sa: 6, ln: 1.15 }), body(['Ci-après dénommé(e) « ', B(alias), ' »,']), P('Et', { a: 'l', sa: 6 }));
+    const idr = [civ + ' ', B(nom || '………')];
+    if (K.iso(w.naissance) || str(w.lieuNaissance)) idr.push(', ' + (fem ? 'née' : 'né') + (K.iso(w.naissance) ? ' le ' + frDate(w.naissance) : '') + (str(w.lieuNaissance) ? ' à ' + str(w.lieuNaissance) : ''));
+    if (str(s.cin)) idr.push(', titulaire de la carte nationale d’identité n° ' + str(s.cin));
+    if (str(w.domicile)) idr.push(', demeurant à ' + str(w.domicile));
+    blocks.push(body([idr, ', ' + (fem ? 'dénommée' : 'dénommé') + ' ci-après « ', B(stg), ' ».']), body('Il a été convenu et arrêté ce qui suit, conformément aux dispositions du Code du travail sénégalais :', { sb: 4 }));
+
+    blocks.push(art('Objet du contrat et nature du stage'));
+    blocks.push(body(fill(st.clauses.objet)));
+    blocks.push(body(stg + ' est rattaché' + (fem ? 'e' : '') + ' ' + (str(st.pole) ? 'au ' + str(st.pole.replace(/^(le|la|l’|l')\s*/i, '')) : 'au service désigné par ' + alias) + (str(j.emploi) ? ', en qualité de ' + str(j.emploi) : '') + '.'));
+
+    blocks.push(art('Missions et tâches'));
+    blocks.push(body('Sous la supervision directe de son maître de stage' + (str(st.maitre) ? ', ' + str(st.maitre) : '') + ', ' + stagLower + ' exécute les missions suivantes :', { sa: 3 }), ...(st.taches.length ? st.taches : ['(à préciser)']).map((t) => bullet(t)));
+
+    blocks.push(art('Durée et horaires de travail'));
+    blocks.push(body('Le présent contrat de stage est conclu pour une durée ferme' + (dur ? ' de ' + dur : '') + ', allant du ' + (a ? K.longDate(a) : '………') + ' au ' + (b ? K.longDate(b) : '………') + '. Il ne se renouvelle pas tacitement : toute prolongation fait l’objet d’un avenant écrit.'));
+    const hh = Math.round(K.num(st.heuresSemaine)) || 40;
+    blocks.push(body(stg + ' est soumis' + (fem ? 'e' : '') + ' au régime horaire en vigueur au sein de ' + alias + ', soit ' + hh + ' heures par semaine, réparties ' + (str(st.jours) || 'du lundi au vendredi') + (str(st.heureDebut) && str(st.heureFin) ? ', de ' + str(st.heureDebut) + ' à ' + str(st.heureFin) : '') + (str(st.pause) ? ' (incluant une pause déjeuner de ' + str(st.pause) + ')' : '') + '.'));
+
+    blocks.push(art('Montant et modalités de l’indemnité de stage'));
+    blocks.push(body(['En contrepartie de son implication et de la nature de ses missions, ' + alias + ' alloue ' + aa(stagLower) + ' une indemnité forfaitaire mensuelle nette de ', ind > 0 ? B(money(ind) + ' F CFA') : '………', (ind > 0 ? ' (' + K.amountWords(ind) + ' francs CFA)' : '') + '. Cette indemnité est versée à la fin de chaque mois au prorata des jours de présence effectifs.']));
+    const mo = [st.moyens.virement && 'virement bancaire', st.moyens.cheque && 'chèque', st.moyens.mobile && 'paiement mobile'].filter(Boolean);
+    if (mo.length) blocks.push(body('Le paiement est effectué par ' + lst(mo) + '. Un état de paiement est remis à l’occasion de chaque versement.'));
+
+    blocks.push(art('Moyens matériels et encadrement'));
+    blocks.push(body([alias + ' s’engage à mettre à la disposition ' + dd(stagLower) + ' ' + (str(st.poste) || 'les moyens nécessaires à l’exécution du stage') + '. ' + (fem ? 'Elle' : 'Il') + ' travaille sous la coordination directe de ', B(str(st.maitre) || '………'), ', qui assure un suivi hebdomadaire de ses activités.' + (st.fraisDeplacement ? ' ' + alias.replace(/^./, (x) => x.toUpperCase()) + ' prend également en charge les frais de déplacement professionnels expressément demandés par la direction.' : '')]));
+
+    blocks.push(art('Confidentialité' + (st.portfolio ? ' et portfolio' : '')));
+    blocks.push(...cl('confidentialite'));
+    if (st.portfolio) blocks.push(...cl('portfolio'));
+    blocks.push(art('Conflit d’intérêts')); blocks.push(...cl('loyaute'));
+    blocks.push(art('Sécurité, santé et respect de la personne')); blocks.push(...cl('securite'));
+
+    blocks.push(art('Modalités de rupture du contrat de stage'));
+    const pr = Math.round(K.num(st.preavis)) || 7, prW = K.withDigits ? K.withDigits(pr) : String(pr);
+    blocks.push(body('Le présent contrat de stage peut être rompu avant son terme :', { sa: 3 }), bullet('d’un commun accord écrit entre les parties ;'), bullet('par ' + alias + ', en cas de faute ou de manquement grave aux obligations du règlement intérieur, après notification écrite et respect d’un préavis de ' + prW + ' jours calendaires ;'), bullet('par ' + stagLower + ', pour motif légitime (par exemple une embauche), sous réserve d’un préavis écrit de ' + prW + ' jours calendaires.'));
+    blocks.push(body('En cas de rupture, l’indemnité est due au prorata du temps de stage effectué.', { sb: 3 }));
+
+    blocks.push(art('Formalités, attestation de stage et litiges'));
+    blocks.push(...cl('formalites'), ...cl('attestation'), ...cl('litige'));
+
+    blocks.push(P('Fait en ' + K.withDigits(j.exemplaires || 2) + ' exemplaires originaux à ' + place({ j }) + ', le ' + (K.longDate(j.dateContrat || j.dateEngagement) || '………') + '.', { a: 'l', sb: 18, sa: 20, kn: 1 }));
+    blocks.push({ k: 'sign', cols: [
+      [P([B(stg.toUpperCase())], { a: 'c', sa: 40, kn: 1 }), P(civ + ' ' + nom, { a: 'c', sa: 2 }), P('(Signature précédée de la mention', { a: 'c', sz: 9 }), P('« Lu et approuvé »)', { a: 'c', sz: 9 })],
+      [P([B(str(e.signataire) || 'Le Directeur Général')], { a: 'c', sa: 40, kn: 1 }), P(str(e.representant).replace(/^(monsieur|madame|mademoiselle|m\.|mme)\s+/i, ''), { a: 'c', sa: 2 })]] });
+    return { kind: 'contract', blocks, font: 'Times New Roman', sz: 11, margin: 2.5 };
+  }
+
+  /* État de paiement de l'indemnité de stage (document de paiement, pas un bulletin de salaire) */
+  function indemniteModel(d, rec) {
+    const K = getK(), w = d.worker, st = d.stage, s = d.service, h = K.computeIndemnite(d, rec), blocks = [], fem = w.sexe === 'F';
+    const nom = K.fullName(w), civ = fem ? (w.civilite === 'Mademoiselle' ? 'Mademoiselle' : 'Madame') : 'Monsieur';
+    const sgn = (n) => (n < 0 ? '− ' : '') + money(Math.abs(n)), row = (l, v) => [[B(l)], [R(v || '—')]];
+    blocks.push({ k: 'box', lines: ['ÉTAT DE PAIEMENT', 'DE L’INDEMNITÉ DE STAGE'] });
+    blocks.push(P([R('Stagiaire : ce document n’est pas un bulletin de salaire.', { i: 1, sz: 9 })], { a: 'c', sb: 4, sa: 10 }));
+    blocks.push({ k: 'tab', border: 1, widths: [150, 303], rows: [
+      row('N° de l’état', str(rec.numero)), row('Date d’émission', K.longDate(rec.date)), row('Entreprise', [d.employer.name, d.employer.siege].filter(Boolean).join(' — ')),
+      row('Stagiaire', civ + ' ' + nom), row('Contrat de stage', str(d.number) + (str(s.numero) ? ' (n° ' + str(s.numero) + ')' : '')),
+      row('Durée du stage', [K.longDate(d.job.dateEngagement), K.longDate(d.job.dateFin)].filter(Boolean).join(' au ')), row('Maître de stage', str(st.maitre)), row('Période', str(rec.periode)),
+      row('Indemnité mensuelle prévue', K.num(st.indemnite) > 0 ? money(K.num(st.indemnite)) + ' FCFA' : '')] });
+    blocks.push(P('', { sa: 8 }));
+    blocks.push({ k: 'tab', border: 1, head: 1, widths: [215, 128, 110], right: [2], rows: [[[R('Désignation')], [R('Détail')], [R('Montant (FCFA)')]]].concat(
+      h.lines.map((l) => [[R(l.label)], [R(l.detail || '')], [R(sgn(l.amount))]]), [[[B('NET À PAYER')], [R('')], [B(money(h.net))]]]) });
+    blocks.push(P(['Arrêté le présent état à la somme de ', B(h.netEnLettres + ' francs CFA'), '.'], { a: 'l', sb: 4, sa: 8, kn: 1 }));
+    blocks.push(P([R('Calcul établi d’après le contrat de stage ' + str(d.number) + ' (prorata sur la base d’un mois de 30 jours). Le régime fiscal et social de l’indemnité de stage est celui fixé par les textes d’application de l’article 183 du Code du travail.', { sz: 9 })], { a: 'j', sa: 14 }));
+    blocks.push({ k: 'sign', cols: [[P([B(fem ? 'La Stagiaire' : 'Le Stagiaire')], { a: 'c', sa: 36, kn: 1 }), P(nom, { a: 'c', sa: 2 }), P('(Bon pour acquit)', { a: 'c', sz: 9 })], [P([B(str(d.employer.signataire) || 'Le Directeur Général')], { a: 'c', sa: 36, kn: 1 }), P(str(d.employer.representant).replace(/^(monsieur|madame|mademoiselle|m\.|mme)\s+/i, ''), { a: 'c', sa: 2 })]] });
+    return { kind: 'contract', blocks, font: 'Times New Roman', sz: 11, margin: 2.5 };
   }
 
   /* ───────── Bulletin de paiement d'honoraires (prestataire indépendant : ce n'est pas un bulletin de salaire) ───────── */
@@ -219,4 +303,6 @@
   X.honorairesModel = honorairesModel;
   X.serviceModels.PRESTATION = prestationModel;
   X.serviceModels.LDC = ldcModel;
+  X.serviceModels.STAGE = stageModel;
+  X.indemniteModel = indemniteModel;
 })(typeof window !== 'undefined' ? window : globalThis);

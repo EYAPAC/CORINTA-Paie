@@ -148,7 +148,7 @@ test('lettre de commande : fiche et échéances en tableaux, numéro, montant, p
   assert.equal((x.match(/<w:tbl>/g) || []).length, 3); assert.ok(/<w:tblBorders><w:top w:val="single"/.test(x)); assert.ok(/w:fill="EEF0F4"/.test(x));
   ['600 000', '800 000', '600 000', 'Livrable 2 : rapport provisoire'].forEach((s) => assert.ok(w.includes(s), s));
   const arts = [...w.matchAll(/Article (\d+) :/g)].map((m) => Number(m[1])); assert.deepEqual(arts, arts.map((_, i) => i + 1));
-  assert.ok(/<w:rFonts w:ascii="Arial"/.test(x));
+  assert.ok(/<w:rFonts w:ascii="Times New Roman"/.test(x));
 });
 
 test('mode mensuel, nature des honoraires, paiement après le client, arbitrage', () => {

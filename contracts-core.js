@@ -16,11 +16,14 @@
 
   const STATUS = ['brouillon', 'signé', 'en cours', 'terminé'];
   /* Types de contrat : CDI, CDD à terme précis, CDD conclu pour la durée d'un projet (modèle CDD du cabinet). */
-  const TYPE_LABEL = { CDI: 'CDI — durée indéterminée', CDD: 'CDD — terme précis (dates)', CDD_PROJET: 'CDD — pour la durée d’un projet', PRESTATION: 'Contrat de prestation de services', LDC: 'Lettre de commande de services' };
-  const TYPE_SHORT = { CDI: 'CDI', CDD: 'CDD', CDD_PROJET: 'CDD projet', PRESTATION: 'Prestation', LDC: 'Lettre de commande' };
+  const TYPE_LABEL = { CDI: 'CDI — durée indéterminée', CDD: 'CDD — terme précis (dates)', CDD_PROJET: 'CDD — pour la durée d’un projet', PRESTATION: 'Contrat de prestation de services', LDC: 'Lettre de commande de services', STAGE: 'Contrat de stage' };
+  const TYPE_SHORT = { CDI: 'CDI', CDD: 'CDD', CDD_PROJET: 'CDD projet', PRESTATION: 'Prestation', LDC: 'Lettre de commande', STAGE: 'Stage' };
   const isCdd = (t) => t === 'CDD' || t === 'CDD_PROJET';
   /* Prestations de services : contrat d'entreprise (indépendant), hors Code du travail — ni salaire, ni DMT, ni bulletin. */
   const isService = (t) => t === 'PRESTATION' || t === 'LDC';
+  /* Contrat de stage (loi n° 2026-18, art. 3 et 183) : ni salaire, ni DMT, ni projet ; indemnité de stage payée sur « état de paiement ». */
+  const isStage = (t) => t === 'STAGE';
+  const isAlt = (t) => isService(t) || isStage(t);
   const WORDS = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize'];
   const TENS = { 2: 'vingt', 3: 'trente', 4: 'quarante', 5: 'cinquante', 6: 'soixante' };
   function numWords(n) {
@@ -108,8 +111,25 @@
     resiliation: 'Chaque partie peut mettre fin au contrat à tout moment, par écrit, moyennant un préavis de {preavis} jours.\nEn cas de manquement grave de l’une des parties à ses obligations, ou de manquements répétés préjudiciables à la bonne exécution de la mission, l’autre partie peut résilier le contrat sans préavis, après mise en demeure écrite restée sans effet pendant huit (08) jours.\nEn cas de résiliation, les prestations régulièrement exécutées jusqu’à la date d’effet sont rémunérées au prorata ; le Prestataire remet à {alias} les travaux en cours et restitue les documents, données et matériels qui lui ont été confiés.',
     finales: 'Le présent contrat exprime l’intégralité de l’accord des parties sur son objet. Toute modification ou prolongation fait l’objet d’un avenant écrit signé des deux parties. Si l’une de ses stipulations était déclarée nulle, les autres demeureraient applicables.'
   };
+  /* Clauses du contrat de stage (modifiables). Variables : {S} La Stagiaire / Le Stagiaire, {s} la Stagiaire / le Stagiaire, {du} de la Stagiaire / du Stagiaire, {au} à la Stagiaire / au Stagiaire, {alias} {de} {preavis}.
+     Références citées (lues au Journal officiel n° 7931) : art. 3 (définition), 17-18 (violence et harcèlement), 183 (contrat de stage), 241 (40 heures), 301 (sécurité et santé), 387 (tribunal du travail). */
+  const STAGE_CLAUSES = {
+    objet: 'Le présent contrat de stage fixe le cadre d’un stage professionnel ayant pour objectif principal l’acquisition d’une expérience pratique et d’aptitudes professionnelles propres à faciliter l’accès à l’emploi (article 3 du Code du travail, loi n° 2026-18 du 3 septembre 2026).',
+    confidentialite: '{S} s’engage à garder totalement confidentiels, et ce sans limitation de durée, les documents, données financières ou stratégiques internes portés à sa connaissance.',
+    portfolio: 'Tolérance portfolio : {alias} autorise {s} à inclure dans son portfolio professionnel les visuels et projets réalisés durant son stage, sous réserve d’une validation écrite préalable de la direction et de l’anonymisation des données sensibles du cabinet ou de ses clients.',
+    loyaute: '{S} s’abstient de toute relation ou activité susceptible de compromettre son indépendance ou de créer une concurrence déloyale envers {alias} pendant la durée du stage. À l’issue du stage, la confidentialité demeure : il est interdit d’utiliser les secrets internes {de} ou de détourner ses clients au moyen d’informations confidentielles.',
+    securite: 'Le stage s’effectue dans un établissement soumis aux règles de sécurité et santé au travail du Code du travail (article 301). {alias} prend les mesures nécessaires pour assurer la sécurité et la santé {du} sur le lieu du stage ; {S} respecte les consignes de sécurité et signale sans délai tout accident ou incident. Les dispositions relatives à la violence et au harcèlement (articles 17 et 18) s’appliquent également aux stagiaires.',
+    formalites: 'Conformément à l’article 183 du Code du travail, le présent contrat de stage est constaté par écrit et déposé à l’inspection du travail et de la sécurité sociale du ressort, pour enregistrement ; à défaut d’écrit, il équivaut à un contrat de travail à durée indéterminée. Les autres règles applicables au contrat de stage sont fixées par décret.',
+    attestation: 'À l’issue du stage, {alias} délivre {au} une attestation de stage mentionnant la durée du stage et la nature des missions confiées.',
+    litige: 'Le présent contrat est régi par le droit sénégalais. Les différends relatifs au contrat de stage, après tentative de règlement amiable, relèvent du tribunal du travail compétent (article 387 du Code du travail).'
+  };
+  const stageDefaults = () => ({
+    pole: '', maitre: '', taches: [], heuresSemaine: 40, jours: 'du lundi au vendredi', heureDebut: '08h00', heureFin: '17h00', pause: 'une heure',
+    indemnite: 0, fraisDeplacement: true, poste: 'un poste de travail complet (ordinateur, accès Internet professionnel, accès aux plateformes et outils nécessaires)', portfolio: true, preavis: 7,
+    moyens: { virement: true, cheque: false, mobile: false }, clauses: Object.assign({}, STAGE_CLAUSES)
+  });
   const serviceDefaults = (p, name) => ({
-    alias: str(p && p.alias) || deriveAlias(name), cin: '', tel: '', email: '', ninea: '', numero: '', numeroAuto: true, numPattern: str(p && p.numPattern) || '{NN}/{AAAA}', numScope: str(p && p.numScope) === 'projet' ? 'projet' : 'type',
+    alias: str(p && p.alias) || deriveAlias(name), cin: '', tel: '', email: '', ninea: '', numero: '', numeroAuto: true, numPattern: str(p && p.numPattern) || '{NN}/{AAAA}', numScope: ['projet', 'continu'].includes(str(p && p.numScope)) ? str(p.numScope) : 'type',
     intitule: '', client: '', contratPrincipal: '', taches: [], supervision: '', risques: false, projet: '', projetId: '',
     remunMode: 'global', montant: 0, nature: 'brut', perdiem: 0, jalons: [], delaiPaiement: 30, apresClient: false,
     moyens: { virement: true, cheque: true, mobile: false }, penaliteTaux: 0, penalitePlafond: 10, preavis: 15, litige: 'tribunal',
@@ -127,7 +147,7 @@
       worker: { civilite: 'Monsieur', nom: '', prenoms: '', sexe: 'M', naissance: '', lieuNaissance: '', pays: 'Sénégal', nationalite: 'Sénégalaise', pere: '', mere: '', domicile: '', famille: 'celibataire', enfants: 0, conjointRevenus: false, epouses: 0, nomsEpouses: '', nomsEnfants: '' },
       job: { projetNom: '', projetObjet: '', fonctionDetail: '', copieInspection: false, emploi: '', classification: '', convention: 'Convention collective nationale du commerce du 16 novembre 1956', dateEngagement: '', type: 'CDI', dateFin: '', essaiMois: 3, essaiRenouvelable: true, horaire: 40, lieu: str(p.siege), lieuSignature: str(p.ville) || 'Dakar', dateContrat: '', exemplaires: 4, ncActif: false, ncMois: 6, ncKm: 30, ncMontant: 0 },
       salary: { base: 0, sursalaire: 0, logement: 0, anciennetePct: 0, transport: 0 },
-      service: serviceDefaults(p, company && (company.employer || company.name)), paiements: [],
+      service: serviceDefaults(p, company && (company.employer || company.name)), stage: stageDefaults(), paiements: [],
       clauses: { references: CLAUSES.references.slice(), conges: CLAUSES.conges, prevoyance: CLAUSES.prevoyance, discipline: CLAUSES.discipline, mobilite: CLAUSES.mobilite, duree: '' },
       dmt: null
     };
@@ -156,6 +176,8 @@
     if (out.clauses.discipline === LEGACY.discipline) out.clauses.discipline = CLAUSES.discipline;
     if (LEGACY.duree.includes(out.clauses.duree)) out.clauses.duree = cddClause('duree', out.job.type);
     if (!Array.isArray(out.paiements)) out.paiements = [];
+    out.stage = Object.assign({}, b.stage, (c && c.stage) || {}); out.stage.clauses = Object.assign({}, b.stage.clauses, (c && c.stage && c.stage.clauses) || {}); out.stage.moyens = Object.assign({}, b.stage.moyens, (c && c.stage && c.stage.moyens) || {});
+    if (!Array.isArray(out.stage.taches)) out.stage.taches = [];
     if (c && c.service && str(c.service.numero) && c.service.numeroAuto === undefined) out.service.numeroAuto = false;   // numéro saisi avant la numérotation automatique : conservé tel quel
     if (!STATUS.includes(out.status)) out.status = 'brouillon';
     if (!TYPE_LABEL[out.job.type]) out.job.type = 'CDI';
@@ -167,8 +189,8 @@
   function switchType(c, type) {
     if (!TYPE_LABEL[type]) return c;
     const old = c.job.type; c.job.type = type;
-    if (isService(type)) { c.job.essaiMois = 0; c.job.copieInspection = false; if (type === 'LDC' && num(c.job.exemplaires) === 4) c.job.exemplaires = 2; if (type === 'PRESTATION' && num(c.job.exemplaires) === 2) c.job.exemplaires = 4; return c; }
-    if (isService(old)) { c.job.essaiMois = type === 'CDI' ? 3 : 0; c.job.copieInspection = isCdd(type); if (num(c.job.exemplaires) === 2) c.job.exemplaires = 4; }
+    if (isService(type) || isStage(type)) { c.job.essaiMois = 0; c.job.copieInspection = false; if (type === 'STAGE' && num(c.job.exemplaires) === 4) c.job.exemplaires = 2; if (type === 'LDC' && num(c.job.exemplaires) === 4) c.job.exemplaires = 2; if (type === 'PRESTATION' && num(c.job.exemplaires) === 2) c.job.exemplaires = 4; return c; }
+    if (isService(old) || isStage(old)) { c.job.essaiMois = type === 'CDI' ? 3 : 0; c.job.copieInspection = isCdd(type); if (num(c.job.exemplaires) === 2) c.job.exemplaires = 4; }
     ['conges', 'mobilite'].forEach((k) => { if (c.clauses[k] === cddClause(k, old)) c.clauses[k] = cddClause(k, type); });
     if (!str(c.clauses.duree) || c.clauses.duree === cddClause('duree', old)) c.clauses.duree = cddClause('duree', type);
     if (isCdd(type) && num(c.job.essaiMois) === 3) c.job.essaiMois = 0;
@@ -229,6 +251,10 @@
   /* ───────── Numérotation automatique : 01, 02, 03… par type de document (lettre de commande / contrat de prestation) et par année, ou par projet ───────── */
   const NUM_PATTERN = '{NN}/{AAAA}';
   const pad = (n, w) => String(n).padStart(w, '0');
+  /** Formats de numérotation par défaut selon le type de document. Lettre de commande : {NNN}{AAAA}{MM} (ex. 114202403 = n° 114, année 2024, mois 03), suite continue. */
+  const NUM_DEFAULTS = { LDC: { pattern: '{NNN}{AAAA}{MM}', scope: 'continu' }, PRESTATION: { pattern: '{NN}/{AAAA}', scope: 'type' }, STAGE: { pattern: '{NN}/{AAAA}', scope: 'type' } };
+  /** Format retenu pour ce type : celui mémorisé par l'entreprise (profile.numFormats), sinon le format par défaut du type. */
+  const numFormatFor = (profile, type) => { const m = profile && profile.numFormats && profile.numFormats[type]; return m && str(m.pattern) ? { pattern: m.pattern, scope: m.scope || 'type' } : (NUM_DEFAULTS[type] || { pattern: NUM_PATTERN, scope: 'type' }); };
   /** Format valide : il doit contenir un compteur ({N}, {NN} ou {NNN}), sinon « -{NN} » est ajouté. */
   const normalizePattern = (p) => { const s = str(p) || NUM_PATTERN; return /\{N{1,3}\}/.test(s) ? s : s + '-{NN}'; };
   /** Numéro mis en forme : {NN} 01, {NNN} 001, {N} 1, {AAAA} 2026, {AA} 26, {MM} mois, {TYPE} LDC ou CPS. */
@@ -250,12 +276,12 @@
   }
   /** Numéro suivant : plus grand compteur déjà utilisé (même type, même année, et même projet si la suite est « par projet ») + 1. */
   function nextServiceNumber(list, d) {
-    const s = d.service || {}, pattern = normalizePattern(s.numPattern), scope = s.numScope === 'projet' ? 'projet' : 'type';
+    const s = d.service || {}, pattern = normalizePattern(s.numPattern), scope = s.numScope === 'projet' ? 'projet' : s.numScope === 'continu' ? 'continu' : 'type';
     const date = iso(d.job.dateContrat) || iso(d.job.dateEngagement) || new Date().toISOString().slice(0, 10), usesYear = /\{AAAA\}|\{AA\}/.test(pattern); let max = 0;
     (list || []).forEach((x) => {
       if (!x || x.id === d.id || !x.job || x.job.type !== d.job.type || !x.service) return;
       if (scope === 'projet' && str(x.service.projet).toLocaleLowerCase('fr') !== str(s.projet).toLocaleLowerCase('fr')) return;
-      const r = numeroSeq(x.service.numero, pattern); if (!r) return; if (usesYear && r.year && r.year !== date.slice(0, 4)) return; max = Math.max(max, r.seq);
+      const r = numeroSeq(x.service.numero, pattern); if (!r) return; if (usesYear && scope !== 'continu' && r.year && r.year !== date.slice(0, 4)) return; max = Math.max(max, r.seq);
     });
     return formatNumero(pattern, max + 1, date, d.job.type);
   }
@@ -316,6 +342,47 @@
     return { errors, warnings, valid: errors.length === 0 };
   }
 
+  /** État de paiement de l'indemnité de stage : indemnité mensuelle du contrat (prorata des jours de présence sur 30), frais de déplacement demandés par la direction, retenue éventuelle. */
+  function computeIndemnite(c, rec) {
+    const st = (c && c.stage) || {}, r = rec || {}, JM = 30, lines = [], montant = Math.max(0, Math.round(num(st.indemnite)));
+    const jours = num(r.jours) > 0 ? Math.min(num(r.jours), JM) : JM, base = Math.round(montant * jours / JM);
+    lines.push({ label: 'Indemnité de stage' + (str(r.periode) ? ' — ' + str(r.periode) : ''), detail: jours >= JM ? 'Mois complet' : jours + ' jours de présence sur ' + JM + ' (prorata)', amount: base });
+    const frais = st.fraisDeplacement ? Math.max(0, Math.round(num(r.frais))) : 0; if (frais > 0) lines.push({ label: 'Frais de déplacement', detail: 'demandés par la direction', amount: frais });
+    const rate = Math.max(0, num(r.retenuePct)), ret = Math.round(base * rate / 100); if (rate > 0) lines.push({ label: 'Retenue (' + rate + ' %)', detail: 'sur ' + base, amount: -ret });
+    const net = base + frais - ret; return { lines, base, frais, retenue: ret, net, netEnLettres: amountWords(net) };
+  }
+  function validateIndemnite(c, rec) {
+    const st = (c && c.stage) || {}, r = rec || {}, errors = [], warnings = [];
+    if (!str(r.periode)) errors.push('Indiquez la période du paiement (ex. Novembre 2026).');
+    if (r.jours !== '' && r.jours != null && (num(r.jours) < 1 || num(r.jours) > 30)) errors.push('Les jours de présence doivent être compris entre 1 et 30.');
+    if (num(r.frais) < 0) errors.push('Les frais de déplacement ne peuvent pas être négatifs.');
+    if (num(r.retenuePct) < 0 || num(r.retenuePct) > 100) errors.push('Le taux de retenue doit être compris entre 0 et 100 %.');
+    if (!(num(st.indemnite) > 0)) warnings.push('Aucune indemnité de stage n’est prévue au contrat.');
+    if (!(num(r.retenuePct) > 0)) warnings.push('Aucune retenue appliquée : le régime fiscal et social de l’indemnité de stage relève du décret d’application de l’article 183 du Code du travail, à confirmer.');
+    return { errors, warnings, valid: errors.length === 0 };
+  }
+  function validateStage(c) {
+    const errors = [], warnings = [], w = c.worker || {}, j = c.job || {}, st = c.stage || {}, s = c.service || {}, e = c.employer || {};
+    if (!str(w.nom)) errors.push('Le nom du stagiaire est obligatoire.');
+    if (!str(w.prenoms)) errors.push('Les prénoms du stagiaire sont obligatoires.');
+    if (!iso(j.dateEngagement)) errors.push('La date de début du stage est obligatoire.');
+    if (!iso(j.dateFin)) errors.push('La date de fin du stage est obligatoire (durée ferme).');
+    else if (iso(j.dateEngagement) && j.dateFin <= j.dateEngagement) errors.push('La date de fin doit être postérieure à la date de début.');
+    if (num(st.indemnite) < 0) errors.push('L’indemnité de stage ne peut pas être négative.');
+    if (num(st.preavis) < 0) errors.push('Le préavis ne peut pas être négatif.');
+    if (num(st.heuresSemaine) > 40) warnings.push('Horaire supérieur à la durée légale de 40 heures par semaine (article 241 du Code du travail).');
+    if (!(num(st.indemnite) > 0)) warnings.push('Indemnité de stage non renseignée.');
+    if (!str(st.maitre)) warnings.push('Maître de stage non renseigné.');
+    if (!(st.taches || []).length) warnings.push('Aucune mission listée : décrivez les tâches confiées au stagiaire.');
+    if (!str(s.cin)) warnings.push('N° de pièce d’identité (CIN) du stagiaire non renseigné.');
+    if (!iso(w.naissance)) warnings.push('Date de naissance du stagiaire non renseignée.');
+    if (!str(w.domicile)) warnings.push('Adresse du stagiaire non renseignée.');
+    if (!str(e.siege)) warnings.push('Siège de l’entreprise non renseigné.');
+    if (!str(e.representant)) warnings.push('Représentant de l’entreprise non renseigné.');
+    warnings.push('Rappel : le contrat de stage doit être écrit et déposé à l’inspection du travail et de la sécurité sociale du ressort ; à défaut, il équivaut à un contrat à durée indéterminée (article 183 du Code du travail).');
+    return { errors, warnings, valid: errors.length === 0 };
+  }
+
   function validateService(c) {
     const errors = [], warnings = [], w = c.worker || {}, j = c.job || {}, s = c.service || {}, e = c.employer || {}, t = serviceTotals(c);
     const label = j.type === 'LDC' ? 'la lettre de commande' : 'le contrat';
@@ -348,6 +415,7 @@
   /** Contrôles de saisie : errors bloquent l'impression, warnings sont affichés. */
   function validate(c) {
     if (isService((c.job || {}).type)) return validateService(c);
+    if (isStage((c.job || {}).type)) return validateStage(c);
     const errors = [], warnings = [], w = c.worker || {}, j = c.job || {}, s = c.salary || {}, e = c.employer || {};
     if (!str(w.nom)) errors.push('Le nom du travailleur est obligatoire.');
     if (!str(w.prenoms)) errors.push('Les prénoms du travailleur sont obligatoires.');
@@ -390,7 +458,7 @@
 
   /** Numéro de contrat suivant : CT-AAAA-NNN (par entreprise et par année). */
   function nextNumber(list, today, type) {
-    const y = String(today || '').slice(0, 4) || String(new Date().getFullYear()), pre = { LDC: 'LDC', PRESTATION: 'PS' }[type] || 'CT', re = new RegExp('^' + pre + '-([0-9]{4})-([0-9]+)$');
+    const y = String(today || '').slice(0, 4) || String(new Date().getFullYear()), pre = { LDC: 'LDC', PRESTATION: 'PS', STAGE: 'CS' }[type] || 'CT', re = new RegExp('^' + pre + '-([0-9]{4})-([0-9]+)$');
     const used = (list || []).map((c) => { const m = re.exec(str(c.number)); return m && m[1] === y ? Number(m[2]) : 0; });
     return pre + '-' + y + '-' + String(Math.max(0, ...used) + 1).padStart(3, '0');
   }
@@ -433,8 +501,8 @@
     (contracts || []).forEach((c) => {
       if (c.status === 'terminé') return;
       const name = fullName(c.worker || {}) || 'Travailleur', j = c.job || {};
-      if (isService(j.type)) {
-        if (iso(j.dateFin)) { const d = dayDiff(today, j.dateFin), what = (j.type === 'LDC' ? 'La lettre de commande' : 'La mission') + ' de ' + name; if (d < 0) out.push({ id: c.id, level: 'late', text: what + ' est arrivée à échéance depuis ' + Math.abs(d) + ' j : clôturer, ou prolonger par avenant écrit.' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: what + ' prend fin le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
+      if (isService(j.type) || isStage(j.type)) {
+        if (iso(j.dateFin)) { const d = dayDiff(today, j.dateFin), what = (j.type === 'LDC' ? 'La lettre de commande' : j.type === 'STAGE' ? 'Le stage' : 'La mission') + ' de ' + name; if (d < 0) out.push({ id: c.id, level: 'late', text: what + ' est arrivée à échéance depuis ' + Math.abs(d) + ' j : clôturer, ou prolonger par avenant écrit.' }); else if (d <= 30) out.push({ id: c.id, level: d <= 7 ? 'urgent' : 'soon', text: what + ' prend fin le ' + j.dateFin.split('-').reverse().join('/') + ' (' + d + ' j).' }); }
         return;
       }
       const te = trialEnd(c);
@@ -445,6 +513,6 @@
     return out;
   }
 
-  const api = { NUM_PATTERN, normalizePattern, formatNumero, numeroSeq, nextServiceNumber, duplicateNumero, ensureProject, serviceValue, computeHonoraires, validatePaiement, isForeign, LEGACY, TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
+  const api = { isStage, isAlt, STAGE_CLAUSES, computeIndemnite, validateIndemnite, NUM_DEFAULTS, numFormatFor, NUM_PATTERN, normalizePattern, formatNumero, numeroSeq, nextServiceNumber, duplicateNumero, ensureProject, serviceValue, computeHonoraires, validatePaiement, isForeign, LEGACY, TYPE_LABEL, TYPE_SHORT, isCdd, isService, amountWords, deriveAlias, deAlias, SERVICE_CLAUSES, serviceTotals, parseJalons, jalonsText, monthsBetween, switchType, durationWords, dureeText, numWords, withDigits, longDate, CLAUSES_CDD, STATUS, FAMILLE, OBJETS, CLAUSES, DMT_EXTRA, blankContract, normalize, fullName, salaryTotals, trialEnd, addMonths, validate, nextNumber, dmtView, dmtMissing, alertsOf, num, iso };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.CorintaContracts = api;
 })(typeof window !== 'undefined' ? window : globalThis);

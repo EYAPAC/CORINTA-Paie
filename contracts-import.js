@@ -111,7 +111,7 @@
     ['dmt.cni', ['carte d\'identite n°', 'carte d\'identite numero', 'carte d\'identite', 'piece d\'identite', 'cni']], ['dmt.ccpf', ['n° d\'immatriculation a la c.c.p.f. - a.t.', 'immatriculation css', 'n° css', 'numero css', 'c.c.p.f.']],
     ['dmt.agrom', ['n° d\'immatriculation a l\'a.g.r.o.m.', 'immatriculation ipres', 'n° ipres', 'numero ipres', 'a.g.r.o.m.', 'ipres']], ['dmt.ethnie', ['groupe ethnique']]
   ];
-  const NAMES = { 'worker.nom': 'Nom', 'worker.prenoms': 'Prénoms', 'worker.sexe': 'Sexe', 'worker.civilite': 'Civilité', 'worker.naissance': 'Date de naissance', 'worker.lieuNaissance': 'Lieu de naissance', 'worker.pays': 'Pays de naissance', 'worker.nationalite': 'Nationalité', 'worker.pere': 'Père', 'worker.mere': 'Mère', 'worker.famille': 'Situation de famille', 'worker.enfants': 'Enfants à charge', 'worker.domicile': 'Domicile', 'worker.nomsEpouses': 'Nom des épouses', 'worker.nomsEnfants': 'Noms des enfants', 'job.emploi': 'Emploi tenu', 'job.classification': 'Classification', 'job.convention': 'Convention collective', 'job.dateEngagement': 'Date d’engagement', 'job.type': 'Type de contrat', 'job.dateFin': 'Date de fin (CDD)', 'job.projetNom': 'Nom du projet', 'job.projetObjet': 'Objet du projet', 'job.fonctionDetail': 'Fonction (détail)', 'employer.prefixe': 'Présentation de l’employeur', 'job.essaiMois': 'Période d’essai (mois)', 'job.essaiRenouvelable': 'Essai renouvelable', 'job.horaire': 'Horaire hebdomadaire', 'job.lieu': 'Lieu de travail', 'job.lieuSignature': 'Contrat établi à', 'job.dateContrat': 'Date du contrat', 'job.exemplaires': 'Exemplaires', 'salary.base': 'Salaire de base', 'salary.sursalaire': 'Sursalaire', 'salary.transport': 'Indemnité de transport', 'salary.logement': 'Indemnité de logement', 'salary.anciennetePct': 'Ancienneté (%)', 'employer.name': 'Employeur', 'employer.siege': 'Siège social', 'employer.representant': 'Représentant', 'employer.qualite': 'Qualité du représentant', 'employer.activite': 'Activité', 'dmt.cni': 'Carte d’identité n°', 'service.cin': 'CIN du prestataire', 'service.tel': 'Téléphone', 'service.email': 'E-mail', 'service.ninea': 'NINEA', 'service.intitule': 'Intitulé de la mission', 'service.montant': 'Montant des honoraires (FCFA)', 'service.perdiem': 'Per diem par nuitée (FCFA)', 'service.client': 'Client final', 'service.supervision': 'Interlocuteur / coordination', 'service.contratPrincipal': 'Contrat principal du client', 'service.taches': 'Tâches (une par ligne)', 'service.nature': 'Honoraires : net / brut / HT / TTC', 'service.remunMode': 'Mode de rémunération', 'service.preavis': 'Préavis (jours)', 'service.numero': 'N° de la lettre de commande', 'dmt.ccpf': 'N° CSS (C.C.P.F.)', 'dmt.agrom': 'N° IPRES (A.G.R.O.M.)', 'dmt.ethnie': 'Groupe ethnique' };
+  const NAMES = { 'stage.indemnite': 'Indemnité mensuelle de stage', 'stage.maitre': 'Maître de stage', 'stage.taches': 'Missions du stagiaire', 'worker.nom': 'Nom', 'worker.prenoms': 'Prénoms', 'worker.sexe': 'Sexe', 'worker.civilite': 'Civilité', 'worker.naissance': 'Date de naissance', 'worker.lieuNaissance': 'Lieu de naissance', 'worker.pays': 'Pays de naissance', 'worker.nationalite': 'Nationalité', 'worker.pere': 'Père', 'worker.mere': 'Mère', 'worker.famille': 'Situation de famille', 'worker.enfants': 'Enfants à charge', 'worker.domicile': 'Domicile', 'worker.nomsEpouses': 'Nom des épouses', 'worker.nomsEnfants': 'Noms des enfants', 'job.emploi': 'Emploi tenu', 'job.classification': 'Classification', 'job.convention': 'Convention collective', 'job.dateEngagement': 'Date d’engagement', 'job.type': 'Type de contrat', 'job.dateFin': 'Date de fin (CDD)', 'job.projetNom': 'Nom du projet', 'job.projetObjet': 'Objet du projet', 'job.fonctionDetail': 'Fonction (détail)', 'employer.prefixe': 'Présentation de l’employeur', 'job.essaiMois': 'Période d’essai (mois)', 'job.essaiRenouvelable': 'Essai renouvelable', 'job.horaire': 'Horaire hebdomadaire', 'job.lieu': 'Lieu de travail', 'job.lieuSignature': 'Contrat établi à', 'job.dateContrat': 'Date du contrat', 'job.exemplaires': 'Exemplaires', 'salary.base': 'Salaire de base', 'salary.sursalaire': 'Sursalaire', 'salary.transport': 'Indemnité de transport', 'salary.logement': 'Indemnité de logement', 'salary.anciennetePct': 'Ancienneté (%)', 'employer.name': 'Employeur', 'employer.siege': 'Siège social', 'employer.representant': 'Représentant', 'employer.qualite': 'Qualité du représentant', 'employer.activite': 'Activité', 'dmt.cni': 'Carte d’identité n°', 'service.cin': 'CIN du prestataire', 'service.tel': 'Téléphone', 'service.email': 'E-mail', 'service.ninea': 'NINEA', 'service.intitule': 'Intitulé de la mission', 'service.montant': 'Montant des honoraires (FCFA)', 'service.perdiem': 'Per diem par nuitée (FCFA)', 'service.client': 'Client final', 'service.supervision': 'Interlocuteur / coordination', 'service.contratPrincipal': 'Contrat principal du client', 'service.taches': 'Tâches (une par ligne)', 'service.nature': 'Honoraires : net / brut / HT / TTC', 'service.remunMode': 'Mode de rémunération', 'service.preavis': 'Préavis (jours)', 'service.numero': 'N° de la lettre de commande', 'dmt.ccpf': 'N° CSS (C.C.P.F.)', 'dmt.agrom': 'N° IPRES (A.G.R.O.M.)', 'dmt.ethnie': 'Groupe ethnique' };
 
   const ALIAS = new Map(); SPEC.forEach(([key, list]) => list.forEach((a) => { if (!ALIAS.has(a)) ALIAS.set(a, key); }));
   const ALIASES_DESC = [...ALIAS.keys()].sort((a, b) => b.length - a.length);
@@ -170,11 +170,20 @@
     [/horaire de travail est en principe de\s+(\d{2})\s+heures/i, (f, m) => put(f, 'job.horaire', Number(m[1]))],
     [/assumer la fonction\s+(.+?)(?:\s+[àa] l[’']adresse suivante\s*:\s*(.+?))?\.?$/i, (f, m) => { put(f, 'job.fonctionDetail', clean(m[1])); put(f, 'job.emploi', clean(m[1])); if (m[2]) put(f, 'job.lieu', clean(m[2])); }],
     [/^([A-ZÀ-Ý][A-Za-zÀ-ÿ' -]{1,28}),\s*le\s+(\d{1,2}\s*(?:er)?\s+[A-Za-zÀ-ÿ]+\s+\d{4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\s*$/, (f, m) => { put(f, 'job.lieuSignature', clean(m[1]).replace(/^fait\s+(?:[àa]\s+)?/i, '')); put(f, 'job.dateContrat', parseDate(m[2])); }],
-    [/exemplaires originaux\s+[àa]\s+([A-Za-zÀ-ÿ' -]{2,30}?)\s+le\s+(.+?)\s*$/i, (f, m) => { put(f, 'job.lieuSignature', clean(m[1])); put(f, 'job.dateContrat', parseDate(m[2])); }],
+    [/exemplaires originaux\s+[àa]\s+([A-Za-zÀ-ÿ' -]{2,30}?),?\s+le\s+(.+?)\s*$/i, (f, m) => { put(f, 'job.lieuSignature', clean(m[1])); put(f, 'job.dateContrat', parseDate(m[2])); }],
     [/^les t[âa]ches (?:de|du)\s+(?:l[’']\s*|la\s+|le\s+)?(.+?)\s+sont les suivantes/i, (f, m) => { const v = clean(m[1]); put(f, 'job.emploi', v.charAt(0).toUpperCase() + v.slice(1)); }],
     [/^(monsieur|madame|mademoiselle)\s*,?\s*$/i, (f, m) => assign(f, 'worker.civilite', m[1])],
     // ── prestations de services et lettres de commande ──
     [/lettre de commande de services?(?:\s*n[°o]\s*([A-Za-z0-9\/.-]+))?/i, (f, m) => { f['job.type'] = 'LDC'; if (m[1]) put(f, 'service.numero', m[1]); }],
+    // ── contrat de stage ──
+    [/^contrat de stage(?: professionnel)?\s*(?:n[°o]\s*([A-Za-z0-9\/.-]+))?\s*$/i, (f, m) => { f['job.type'] = 'STAGE'; if (m[1]) put(f, 'service.numero', m[1]); }],
+    [/^contrat n[°o]\s*([A-Za-z0-9\/.-]+)\s*$/i, (f, m) => put(f, 'service.numero', m[1])],
+    [/ci-apr[èe]s\s*[«"“]\s*la\s+stagiaire\s*[»"”]|ci-apr[èe]s\s*[«"“]\s*le\s+stagiaire\s*[»"”]/i, (f) => { f['job.type'] = 'STAGE'; }],
+    [/titulaire de la (?:CIN|CNI)\s*(?:n[°o])?\s*([\d ]{6,}?)\s*(?:,|\.|\bet\b|$)/i, (f, m) => put(f, 'service.cin', clean(m[1]))],
+    [/\bet demeurant [àa]\s+(.+?)\.?\s*$/i, (f, m) => put(f, 'worker.domicile', clean(m[1]))],
+    [/dur[ée]e ferme\b.*?allant du\s+(.+?)\s+au\s+(.+?)\.?\s*$/i, (f, m) => { f['job.type'] = 'STAGE'; put(f, 'job.dateEngagement', parseDate(m[1])); put(f, 'job.dateFin', parseDate(m[2])); }],
+    [/indemnit[ée] forfaitaire mensuelle(?: nette)? de\s+([\d][\d\s.]*?)\s*(?:F\s*CFA|FCFA|francs)/i, (f, m) => { const n = Number(String(m[1]).replace(/[^\d]/g, '')); if (n > 0) put(f, 'stage.indemnite', n); }],
+    [/coordination directe d(?:u|e la|e l[’']|e)\s*(.+?),\s*qui assure/i, (f, m) => put(f, 'stage.maitre', clean(m[1]))],
     [/^(monsieur|madame|mademoiselle)\s*:\s*(.{3,80})$/i, (f, m) => { assign(f, 'worker.civilite', m[1]); assign(f, 'worker.nomComplet', m[2]); }],
     [/(?:d[ée]nomm[ée]e?\s+ici\s+prestataire|en qualit[ée] de prestataire)\s+(.{3,80}?)\.?\s*$/i, (f, m) => { put(f, 'job.emploi', clean(m[1])); put(f, 'job.type', 'PRESTATION'); }],
     [/^(monsieur|madame|mademoiselle)\s+(.+?)\s+n[ée]e?\s+le\s+(.+?)\s+[àa]\s+(.+?)\s+ci-apr[èe]s\s+d[ée]nomm[ée]e?\s+prestataire(?:\s+titulaire d(?:e la?|u)\s+(?:CIN|CNI|carte[^N]{0,30})\s*N?[°o]?\s*([\d ]+?))?(?:\s+demeurant\s+[àa]\s+(.+?))?\.?\s*$/i, (f, m) => { assign(f, 'worker.civilite', m[1]); assign(f, 'worker.nomComplet', m[2]); put(f, 'worker.naissance', parseDate(m[3])); put(f, 'worker.lieuNaissance', clean(m[4])); if (m[5]) put(f, 'service.cin', clean(m[5])); if (m[6]) put(f, 'worker.domicile', clean(m[6])); put(f, 'job.type', 'PRESTATION'); }],
@@ -240,7 +249,7 @@
     const taches = []; let inT = false;
     blocks.forEach((b) => {
       if (b.type !== 'p') return; const tx = fold(b.text);
-      if (/^(?:il assure, en particulier|description des taches|les taches (?:de|du)|taches et responsabilites|principales activites)/.test(tx) || /^les taches de\b/.test(tx)) { inT = true; return; }
+      if (/^(?:il assure, en particulier|sous la supervision directe|description des taches|les taches (?:de|du)|taches et responsabilites|principales activites)/.test(tx) || /^les taches de\b/.test(tx)) { inT = true; return; }
       if (inT && (/^(?:article|\d+\.\d|normes d'execution|2\.2)/.test(tx) || b.text.length > 160)) inT = false;
       if (inT && b.text.length >= 4 && b.text.length <= 160) taches.push(b.text.replace(/^[-•–·\s]+/, '').trim());
     });
@@ -252,6 +261,11 @@
   }
   const addMonthsIso = (iso, n) => { const [y, m, d] = iso.split('-').map(Number), tt = y * 12 + (m - 1) + n, ny = Math.floor(tt / 12), nm = (tt % 12) + 1, last = new Date(Date.UTC(ny, nm, 0)).getUTCDate(); return ny + '-' + pad(nm) + '-' + pad(Math.min(d, last)); };
   const dayBefore = (iso) => new Date(Date.parse(iso) - 864e5).toISOString().slice(0, 10);
+  function finishStage(f) {
+    if (f['dmt.cni'] !== undefined) { if (f['service.cin'] === undefined) f['service.cin'] = f['dmt.cni']; delete f['dmt.cni']; }
+    if (f['service.taches'] !== undefined) { f['stage.taches'] = f['service.taches']; delete f['service.taches']; }
+    if (f['service.intitule'] !== undefined) delete f['service.intitule'];
+  }
   function finishService(f) {
     if (f['dmt.cni'] !== undefined) { if (f['service.cin'] === undefined) f['service.cin'] = f['dmt.cni']; delete f['dmt.cni']; }
     const start = f['job.dateEngagement'];
@@ -263,7 +277,8 @@
   function finish(candidates) {
     candidates.forEach((c) => {
       const f = c.fields;
-      if (f['job.type'] === 'LDC' || f['job.type'] === 'PRESTATION' || (f['job.type'] === undefined && Object.keys(f).some((k) => /^service\.(?:montant|intitule|duree|perdiem|dureeMois|client)/.test(k)))) finishService(f);
+      if (f['job.type'] === 'STAGE') finishStage(f);
+      else if (f['job.type'] === 'LDC' || f['job.type'] === 'PRESTATION' || (f['job.type'] === undefined && Object.keys(f).some((k) => /^service\.(?:montant|intitule|duree|perdiem|dureeMois|client)/.test(k)))) finishService(f);
       if (f['job.projetNom'] && f['job.type'] === 'CDD') f['job.type'] = 'CDD_PROJET';
       c.items = Object.keys(f).map((path) => ({ path, label: NAMES[path] || path, value: f[path] }));
     });
