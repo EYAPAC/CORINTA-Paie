@@ -69,7 +69,7 @@ test('contrats enregistrés avant la numérotation : numéro saisi conservé (ja
 
 test('le numéro apparaît dans les documents : lettre de commande (titre), contrat de prestation (sous le titre), bulletin', () => {
   const txt = (d) => X.contractModel(d).blocks.map((b) => (b.k === 'p' ? b.r.map((r) => r.t).join('') : b.k === 'box' ? b.lines.join(' ') : '')).join('\n');
-  const l = make('LDC', (c) => { c.service.numero = '05/2026'; }); assert.ok(txt(l).includes('LETTRE DE COMMANDE DE SERVICES N° 05/2026'));
+  const l = make('LDC', (c) => { c.service.numero = '05/2026'; }); assert.ok(txt(l).includes('LETTRE DE COMMANDE DE SERVICES N°05/2026'));
   const p = make('PRESTATION', (c) => { c.service.numero = '03/2026'; }); assert.ok(txt(p).includes('Contrat n° 03/2026')); assert.ok(!txt(make('PRESTATION', (c) => { c.service.numero = ''; })).includes('Contrat n°'));
   l.number = 'LDC-2026-001'; const b = X.honorairesModel(l, { numero: 'LDC-2026-001/01', date: '2026-12-31', periode: 'x' }).blocks.find((k) => k.k === 'tab').rows.flat(2).map((r) => r.t).join(' '); assert.ok(b.includes('n° 05/2026'));
 });

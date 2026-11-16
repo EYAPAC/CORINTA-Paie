@@ -129,27 +129,36 @@
   /* ───────── Lettre de commande de services ───────── */
   function ldcModel(d) {
     const c = context(d), { s, j, w, totals: t } = c, blocks = []; let n = 0;
-    const art = (title) => P([B('Article ' + (++n) + ' : ' + title)], { a: 'l', sb: 12, sa: 5, kn: 1 });
+    const art = (title) => P([B('Article ' + (++n) + ' : ' + title)], { a: 'l', sb: 12, sa: 5, kn: 1, pb: n === 1 });
     const sub = (num, title) => P([B(num + ' ' + title)], { a: 'l', sb: 6, sa: 3, kn: 1 });
     const body = (txt, o) => P(txt, Object.assign({ a: 'j', sa: 5, ln: 1.1 }, o));
     const numero = str(s.numero) || str(d.number) || '………';
-    blocks.push(P([R('LETTRE DE COMMANDE DE SERVICES N° ' + numero, { b: 1, sz: 14 })], { a: 'c', sa: 8 }));
-    blocks.push(P('Date : Le ' + (c.K.longDate(j.dateContrat || j.dateEngagement) || '………'), { a: 'r', sa: 4 }));
-    blocks.push(P([R('Montant : ' + money(t.montant) + ' F CFA' + (s.remunMode === 'mensuel' ? ' par mois' : ''), { b: 1, sz: 12 })], { a: 'c', sa: 8 }));
-    const row = (l, v) => [[B(l)], [R(v || '—')]];
-    blocks.push({ k: 'tab', border: 1, widths: [150, 303], rows: [
-      row('Prestataire', c.civ + ' ' + c.nom), row('Date et lieu de naissance', [frDate(w.naissance), str(w.lieuNaissance) && 'à ' + str(w.lieuNaissance)].filter(Boolean).join(' ')),
-      row('Adresse', str(w.domicile)), row('Tél / Mail', [str(s.tel), str(s.email)].filter(Boolean).join(' · ')), row('CIN / NINEA', [str(s.cin) && 'CIN ' + str(s.cin), str(s.ninea) && 'NINEA ' + str(s.ninea)].filter(Boolean).join(' · ')),
-      row('Titre de l’activité', '« ' + (str(s.intitule) || '………') + ' »'), row('Fonction du prestataire', str(j.emploi)),
-      row('Durée des prestations', c.K.durationWords(j.dateEngagement, j.dateFin) || '—'), row('Personne responsable', supervisor(c)), row('Lieu d’exécution', str(j.lieu)),
-      row('Début d’exécution', c.K.longDate(j.dateEngagement)), row('Fin prévue', c.K.longDate(j.dateFin)), row('Projet', str(s.projet)), row('Payeur', c.alias)] });
-
+    const AR = (t, o) => R(t, Object.assign({ f: 'Arial', sz: 10 }, o)), monthYear = (iso) => String(c.K.longDate(iso) || '').replace(/^\d+(?:er)?\s+/, '');
+    const dur = String(c.K.durationWords(j.dateEngagement, j.dateFin) || '').replace(/^(\S+) \((\d+)\) (.*)$/, (m0, w1, n1, rest) => n1 + ' (' + w1.charAt(0).toUpperCase() + w1.slice(1) + ') ' + rest);
+    const underline = '______________', civLabel = c.civ;
+    blocks.push(P([AR('LETTRE DE COMMANDE DE SERVICES N°' + numero, { b: 1, sz: 11 })], { a: 'c', sa: 16 }));
+    blocks.push(P([AR('Date : Le ' + (c.K.longDate(j.dateContrat || j.dateEngagement) || '………'))], { a: 'r', sa: 12 }));
+    blocks.push({ k: 'tab', border: 1, li: 255, widths: [198], rows: [[[AR('Montant ' + money(t.montant) + ' F CFA' + (s.remunMode === 'mensuel' ? ' par mois' : ''))]]] });
+    blocks.push({ k: 'tab', outer: 1, widths: [228, 225], cs: 1, rows: [
+      [[AR('Nom et Prénom du prestataire, adresse :', { b: 1 })], [AR('')]],
+      [[AR(civLabel, { b: 1 })], [AR(': ' + c.nom, { b: 1 })]],
+      [[AR('Date et Lieu de Naissance', { b: 1 })], [AR(': ' + [c.K.longDate(w.naissance), str(w.lieuNaissance) && 'à ' + str(w.lieuNaissance)].filter(Boolean).join(' '), { b: 1 })]],
+      [[AR('Adresse', { b: 1 })], [AR(': ' + (str(w.domicile) || underline), { b: 1 })]],
+      [[AR('Tél', { b: 1 })], [AR(': ' + (str(s.tel) || underline), { b: 1 })]],
+      [[AR('Mail', { b: 1 })], [AR(': ' + (str(s.email) || underline), { b: 1 })]]] });
+    blocks.push(P([AR('Titre de L’activité :', { b: 1, sz: 12 })], { a: 'c', sb: 12, sa: 10 }));
+    blocks.push({ k: 'tab', outer: 1, fill: 'D9D9D9', widths: [453], cs: 4, rows: [[[AR('Titre de l’activité : ', { b: 1, sz: 12 }), AR('« ' + (str(s.intitule) || '………') + ' »', { b: 1, i: 1, sz: 12 })]]] });
+    const fiche = (label, value) => [[AR(label, { u: 1 })], [AR(':')], [AR(value || '—', { b: 1 })]];
+    blocks.push({ k: 'tab', widths: [175, 14, 264], cs: 16, rows: [
+      fiche('Durée des prestations', dur), fiche('Personne responsable', str(c.e.name).toUpperCase() + (str(s.alias) ? ' (' + str(s.alias) + ')' : '')), fiche('Lieu d’exécution', str(j.lieu).toUpperCase()),
+      fiche('Début d’exécution', monthYear(j.dateEngagement)), fiche('Payeur', c.alias)] });
     blocks.push(art('Parties contractantes'));
     blocks.push(body([employerRuns(c), ', ci-après « ', B(c.alias), ' »,']), P('ET', { a: 'c', sa: 4 }), body([providerRuns(c), ', ci-après « ', B('le Prestataire'), ' ».']));
     blocks.push(art('Objet de la commande'));
     blocks.push(sub('2.1.', 'Définition de la prestation'));
     blocks.push(body([c.alias + ' requiert les services de ', B(c.nom), ', ' + c.denomme + ' ici Prestataire, en qualité ' + dd(str(j.emploi) || '………') + ', dans le cadre de « ' + (str(s.intitule) || '………') + ' »' + (str(s.client) ? ', confié à ' + c.alias + ' par ' + str(s.client) + ' (ci-après « le Client »)' : '') + (str(s.contratPrincipal) ? ', aux termes du contrat de prestation intitulé « ' + str(s.contratPrincipal) + ' »' : '') + '.']));
     blocks.push(...clause(c, 'nature', { sa: 5 }));
+    if (str(s.projet)) blocks.push(body('Cette mission s’inscrit dans le projet « ' + str(s.projet) + ' ».'));
     blocks.push(sub('2.2.', 'Description des tâches du Prestataire'));
     blocks.push(body('Les tâches du Prestataire sont les suivantes :', { sa: 3 }), ...tasks(c));
 
@@ -171,7 +180,7 @@
     blocks.push(body('Pièces justificatives — tous les justificatifs originaux nécessaires sont fournis avec les factures, notamment :', { sa: 3 }), bullet('la facture ou la note d’honoraires ;'), bullet(s.remunMode === 'mensuel' ? 'les feuilles de temps faisant apparaître les jours de travail effectif, visées par ' + supervisor(c) + ' ;' : 'les livrables ou rapports validés par ' + supervisor(c) + '.'));
     blocks.push(body('L’absence ou la non-conformité des pièces justificatives peut entraîner la retenue des montants concernés.', { sb: 3 }));
     blocks.push(sub('5.2.', 'Paiement'));
-    if (t.jalons.length) blocks.push(body('Les règlements s’effectuent sur présentation de facture après validation du coordonnateur du projet, comme suit :', { sa: 4 }), jalonsTable(c, false));
+    if (t.jalons.length) blocks.push(body('Les règlements s’effectueront sur présentation de facture après validation du coordonnateur du Projet comme suit :', { sa: 4 }), ...t.jalons.map((x) => bullet(x.pct + '% ' + (str(x.libelle) || 'Livrable') + (s.apresClient ? ' et paiement du client' : ''), { num: '➢', li: 40, hang: 16 })));
     else blocks.push(body(s.remunMode === 'mensuel' ? 'Les honoraires sont payables mensuellement à terme échu, après validation de la feuille de temps.' : 'Les honoraires sont payables à l’achèvement de la prestation, après validation des livrables.'));
     blocks.push(...clause(c, 'fiscal', { sb: 3 }));
 

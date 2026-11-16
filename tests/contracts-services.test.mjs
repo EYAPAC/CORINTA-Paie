@@ -144,9 +144,9 @@ test('contrat de prestation : articles numérotés dans l’ordre, mentions lég
 test('lettre de commande : fiche et échéances en tableaux, numéro, montant, per diem', () => {
   const d = make('LDC', (c) => { c.service.remunMode = 'global'; c.service.montant = 2000000; c.service.perdiem = 30000; c.service.numero = '01122026'; c.service.jalons = K.parseJalons('30 | Livrable 1 : rapport de démarrage\n40 | Livrable 2 : rapport provisoire\n30 | Livrable 3 : rapport définitif'); });
   const x = docx(d)['word/document.xml'], w = unesc(wtext(x)).replace(/\u00a0/g, ' ');
-  assert.ok(w.includes('LETTRE DE COMMANDE DE SERVICES N° 01122026')); assert.ok(w.includes('Montant : 2 000 000 F CFA')); assert.ok(w.includes('trente mille (30 000) francs CFA par nuitée'));
-  assert.equal((x.match(/<w:tbl>/g) || []).length, 3); assert.ok(/<w:tblBorders><w:top w:val="single"/.test(x)); assert.ok(/w:fill="EEF0F4"/.test(x));
-  ['600 000', '800 000', '600 000', 'Livrable 2 : rapport provisoire'].forEach((s) => assert.ok(w.includes(s), s));
+  assert.ok(w.includes('LETTRE DE COMMANDE DE SERVICES N°01122026')); assert.ok(w.includes('Montant 2 000 000 F CFA')); assert.ok(w.includes('trente mille (30 000) francs CFA par nuitée'));
+  assert.equal((x.match(/<w:tbl>/g) || []).length, 5); assert.ok(/<w:tblBorders><w:top w:val="single"/.test(x)); assert.ok(/w:fill="D9D9D9"/.test(x));
+  ['➢', '30% Livrable 1 : rapport de démarrage', '40% Livrable 2 : rapport provisoire', 'Montant 2 000 000 F CFA', 'Nom et Prénom du prestataire, adresse', 'Titre de L’activité', 'Payeur'].forEach((s) => assert.ok(w.includes(s), s));
   const arts = [...w.matchAll(/Article (\d+) :/g)].map((m) => Number(m[1])); assert.deepEqual(arts, arts.map((_, i) => i + 1));
   assert.ok(/<w:rFonts w:ascii="Times New Roman"/.test(x));
 });
